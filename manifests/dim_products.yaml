@@ -1,0 +1,53 @@
+manifest_version: 1
+pipeline_id: dim_products
+brief: "Load the product catalog from the ERP database into the warehouse as a table named dim_products, keeping the cold-chain flag and storage requirements."
+created: "2026-11-14"
+sources:
+  - id: erp_products
+    format: sqlite
+    path_pattern: "${DATA_ROOT}/erp/erp.db#products"
+    expected_schema:
+      product_id: string
+      sku: string
+      product_name: string
+      brand_name: string
+      dosage_form: string
+      strength: string
+      pack_size: string
+      is_cold_chain: int64
+      storage_requirement: string
+      storage_min_c: float64
+      storage_max_c: float64
+      unit_price: float64
+      currency: string
+      supplier_id: string
+      atc_code: string
+      requires_prescription: int64
+      shelf_life_days: int64
+      is_active: int64
+    observed:
+      files: 1
+      total_rows: 120
+      null_rates: {product_id: 0.0, sku: 0.0, product_name: 0.0, brand_name: 0.0, strength: 0.0, is_cold_chain: 0.0, storage_requirement: 0.0, storage_min_c: 0.0, storage_max_c: 0.0, unit_price: 0.0, atc_code: 0.0}
+steps:
+  - {id: extract, file: dags/dim_products/pipeline.py, function: extract, description: "Read erp.db products table read-only"}
+  - {id: transform, file: dags/dim_products/pipeline.py, function: transform, description: "Select columns, trim strings, enforce types"}
+  - {id: load, file: dags/dim_products/pipeline.py, function: load, description: "Build dim_products__new and atomically swap in (full reload)"}
+  - {id: validate, file: dags/dim_products/pipeline.py, function: validate, description: "Run validation checks against loaded table"}
+validation_checks:
+  - {id: row_count_matches_source, type: row_count, description: "All source rows loaded", params: {expected: 120}}
+  - {id: product_id_unique, type: unique, description: "product_id is unique", params: {column: product_id}}
+  - {id: required_non_null, type: not_null, description: "Required columns non-null", params: {columns: [product_id, sku, product_name, is_cold_chain, storage_requirement]}}
+  - {id: cold_chain_flag_binary, type: accepted_values, description: "is_cold_chain in (0,1)", params: {column: is_cold_chain, values: [0, 1]}}
+  - {id: cold_chain_count_matches_source, type: aggregate_match, description: "Cold-chain product count equals source (42)", params: {column: is_cold_chain}}
+  - {id: storage_columns_present, type: schema, description: "Storage columns kept", params: {columns: [is_cold_chain, storage_requirement, storage_min_c, storage_max_c]}}
+  - {id: storage_temp_range_valid, type: range, description: "storage_min_c <= storage_max_c", params: {min: storage_min_c, max: storage_max_c}}
+destination:
+  type: sqlite
+  table: dim_products
+  path: "${WAREHOUSE_DB}"
+build:
+  test_db: ./warehouse/test_build.db
+  attempts_used: 1
+  status: success
+version: 1
