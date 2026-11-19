@@ -1,0 +1,11 @@
+# Learned by `python -m detection baseline` from /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/data_generation/data_clean (2026-08-14..2026-11-11).
+row_count_bands:
+  crm_sales_orders_csv:
+    max: 151
+    min: 42
+  erp_products:
+    max: 120
+    min: 120
+  tpl_shipment_events_json:
+    max: 30
+    min: 0

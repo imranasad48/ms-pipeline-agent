@@ -3,3 +3,4 @@ __pycache__/
 warehouse/*.db
 .DS_Store
 **/.DS_Store
+detection/incidents.db

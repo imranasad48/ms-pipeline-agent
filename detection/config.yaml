@@ -1,0 +1,65 @@
+# Detection thresholds. Hand-tuned against ../data_generation/data_clean
+# (see `python -m detection calibrate`). Row-count bands live in baselines.yaml.
+
+# Where/when each source's files are expected. Keyed by the first directory
+# under ${DATA_ROOT} in the manifest's path_pattern.
+cadence:
+  crm:    {kind: daily,  available_after_hours: 26}     # file for D lands D+1 02:00
+  3pl:    {kind: hourly, available_after_hours: 1.25}   # hour file lands 15 min after window end
+  iot:    {kind: daily,  available_after_hours: 24.5}
+  manual: {kind: weekly, weekday: 4, available_after_hours: 18}   # Fridays 18:00
+  erp:    {kind: static}
+
+freshness:
+  late_tolerance_hours: 1.0      # mtime may trail expected availability by this much
+
+schema:
+  type_bad_rate_tolerance: 0.0   # share of non-null values allowed to fail the declared type
+  rename_min_name_similarity: 0.6
+
+volume:
+  row_count_margin: 0.25         # widen the learned [min,max] by 25% ...
+  row_count_abs_slack: 2         # ... and by at least this many rows
+
+nulls:
+  abs_delta: 0.05                # null rate may exceed baseline by this much ...
+  z: 3.0                         # ... or by z binomial std-errors for small files, if larger
+  null_tokens: ["", "NULL", "null", "None", "NaN", "nan", "N/A"]
+  # {source_id: {column: abs_delta}}. `notes` is optional free text, filled only for
+  # some event statuses: whole hourly files legitimately have it 100% empty, so it
+  # is exempt (delta 1.0 = never trips) -- found by calibrating on data_clean.
+  overrides:
+    tpl_shipment_events_json: {notes: 1.0}
+
+run_health:
+  max_load_lag_hours: 36         # table must have been loaded within this long of the day's end
+
+# Columns whose damage is worse than cosmetic (severity "key" below).
+key_columns:
+  crm_sales_orders_csv: [order_line_id, order_id, line_no, customer_id, product_id]
+  tpl_shipment_events_json: [event_id, tracking_id, sales_order_id, status, event_timestamp]
+  erp_products: [product_id, sku, is_cold_chain]
+
+# Extra value-format rules for columns the manifest only types as "string".
+formats:
+  crm_sales_orders_csv:
+    order_date: '^\d{4}-\d{2}-\d{2}$'
+    requested_delivery_date: '^\d{4}-\d{2}-\d{2}$'
+    order_datetime: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+
+severity:
+  schema.missing_column: {key: critical, other: warn}
+  schema.renamed:        {key: critical, other: warn}
+  schema.type_change:    {key: critical, other: warn}
+  schema.new_column:     info
+  schema.column_order:   info
+  volume.row_count:      warn
+  nulls.spike:           {key: critical, other: warn}
+  freshness.missing_file:    critical
+  freshness.empty_file:      critical
+  freshness.truncated_file:  critical
+  freshness.unreadable_file: critical
+  freshness.late_file:       warn
+  run_health.table_missing:  critical
+  run_health.table_empty:    critical
+  run_health.load_stale:     warn
