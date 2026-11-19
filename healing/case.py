@@ -132,6 +132,9 @@ def assemble_case(settings: Settings, incident_id: str, now: dt.datetime | None 
         init = Path(s["file"]).parent / "__init__.py"
         if (settings.repo_root / init).exists():
             live.add(str(init))
+    manifest_rel = f"manifests/{pid}.yaml"
+    if not settings.include_manifest:      # ablation: the agent never sees (or edits) the manifest
+        live.discard(manifest_rel)
     live_files = sorted(live)
 
     stamp = (now or dt.datetime.now()).strftime("%Y%m%d%H%M%S")
@@ -144,6 +147,9 @@ def assemble_case(settings: Settings, incident_id: str, now: dt.datetime | None 
         for base in (case.originals, case.staging):
             (base / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, base / rel)
+    if not settings.include_manifest:      # detection/validation still need it, in originals only
+        (case.originals / manifest_rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(settings.repo_root / manifest_rel, case.originals / manifest_rel)
     case.work.mkdir(parents=True, exist_ok=True)
     (case.staging / "agent_out").mkdir(exist_ok=True)
 

@@ -34,7 +34,7 @@ def _common(p: argparse.ArgumentParser, data_root: bool = True) -> None:
     p.add_argument("--config", type=Path, default=None)
     p.add_argument("--warehouse", type=Path,
                    default=Path(os.environ.get("WAREHOUSE_DB", C.DEFAULT_WAREHOUSE)))
-    p.add_argument("--db", type=Path, default=C.DEFAULT_INCIDENTS_DB,
+    p.add_argument("--db", "--incidents-db", dest="db", type=Path, default=C.DEFAULT_INCIDENTS_DB,
                    help="incidents database (default detection/incidents.db)")
 
 

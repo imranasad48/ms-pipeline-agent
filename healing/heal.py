@@ -60,8 +60,10 @@ def run_validation(settings: Settings, case: Case, baseline: dict) -> dict:
     """Step 4: same checks on the staged (patched) copy; decide the verdict."""
     res = run_pipeline(settings, case.staging, case.pipeline_id, case.steps,
                        case.scoped_root, case.work, "patched")
+    mrel = f"manifests/{case.pipeline_id}.yaml"
     after_failing = detection_failures(
-        settings, case.staging / f"manifests/{case.pipeline_id}.yaml", case.business_date)
+        settings, (case.staging if (case.staging / mrel).exists() else case.originals) / mrel,
+        case.business_date)
     inc = case.incident
     det_key = f"{inc['source_id']}:{inc['check_id']}"
     db, da = merge_detection(baseline["pipeline"], after_failing, set(baseline["detection_failing"]))

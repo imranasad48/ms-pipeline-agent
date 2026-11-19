@@ -62,7 +62,8 @@ def manifest_policy(root: Path, pipeline_id: str) -> dict:
     """If the staged manifest changed: version must increase and change_log must grow."""
     rel = f"manifests/{pipeline_id}.yaml"
     old = yaml.safe_load((root / "originals" / rel).read_text())
-    new = yaml.safe_load((root / "staging" / rel).read_text())
+    staged = root / "staging" / rel
+    new = yaml.safe_load((staged if staged.exists() else root / "originals" / rel).read_text())
     if old == new:
         return {"policy:manifest_versioned": "pass", "note": "manifest unchanged"}
     ok = (new.get("version", 0) > old.get("version", 0)

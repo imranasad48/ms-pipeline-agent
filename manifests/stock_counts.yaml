@@ -1,0 +1,99 @@
+manifest_version: 1
+pipeline_id: stock_counts
+brief: "Load the weekly manual warehouse stock count Excel workbooks into the warehouse as a table named stock_counts, handling human formatting inconsistencies defensively."
+created: "2026-11-19"
+sources:
+  - id: manual_stock_count
+    format: xlsx
+    path_pattern: "${DATA_ROOT}/manual/stock_count_*.xlsx"
+    expected_schema:
+      warehouse: string
+      zone: string
+      product_code: string
+      product_name: string
+      batch_no: string
+      expiry_date: date
+      system_qty: int64
+      counted_qty: int64
+      variance: int64
+      uom: string
+      count_date: date
+      counted_by: string
+      notes: string
+    observed:
+      files: 14
+      total_rows: 1214
+      layout: "sheet 'Stock Count'; 3 banner rows (title merged A1:M1, subtitle, blank) then header on row 4; one data row per count line; week taken from filename (2026-W33..W46)"
+      null_rates:
+        notes: 0.336
+        warehouse: 0.0
+        zone: 0.0
+        product_code: 0.0
+        product_name: 0.0
+        batch_no: 0.0
+        expiry_date: 0.0
+        system_qty: 0.0
+        counted_qty: 0.0
+        variance: 0.0
+        uom: 0.0
+        count_date: 0.0
+        counted_by: 0.0
+steps:
+  - id: extract
+    file: dags/stock_counts/pipeline.py
+    function: extract
+    description: "Read all stock_count_*.xlsx; locate header row by content, map header aliases to canonical columns, add week and source_file."
+  - id: transform
+    file: dags/stock_counts/pipeline.py
+    function: transform
+    description: "Trim text, upper-case warehouse/product codes, coerce ints (thousand separators, junk->NULL), parse dates (strings/Excel serials) to ISO, drop blank/footer rows, derive missing variance, drop exact duplicates."
+  - id: load
+    file: dags/stock_counts/pipeline.py
+    function: load
+    description: "Drop and recreate table stock_counts in the SQLite warehouse and insert all rows."
+  - id: validate
+    file: dags/stock_counts/pipeline.py
+    function: validate
+    description: "Run the validation checks against the loaded table."
+validation_checks:
+  - id: row_count_matches_source
+    type: row_count
+    description: "Loaded rows equal data rows (non-blank product_code) across all source workbooks."
+    params: {expected: "sum of source data rows", observed_at_build: 1214}
+  - id: schema_columns
+    type: schema
+    description: "Table has the 13 source columns plus week and source_file, in order."
+    params: {columns: [warehouse, zone, product_code, product_name, batch_no, expiry_date, system_qty, counted_qty, variance, uom, count_date, counted_by, notes, week, source_file]}
+  - id: required_not_null
+    type: not_null
+    description: "Required columns contain no NULLs."
+    params: {columns: [warehouse, product_code, counted_qty, count_date, week]}
+  - id: no_duplicate_count_lines
+    type: unique
+    description: "No fully duplicated count lines. Note: (week,warehouse,zone,product_code,batch_no) is NOT unique - the same bin is legitimately counted more than once in a week (15 cases)."
+    params: {key: [week, warehouse, zone, product_code, batch_no, system_qty, counted_qty, count_date, counted_by]}
+  - id: variance_consistent
+    type: expression
+    description: "variance = counted_qty - system_qty where both present."
+    params: {expression: "variance = counted_qty - system_qty"}
+  - id: non_negative_quantities
+    type: range
+    description: "system_qty and counted_qty are >= 0."
+    params: {columns: [system_qty, counted_qty], min: 0}
+  - id: all_weeks_loaded
+    type: distinct_count
+    description: "Number of distinct weeks equals number of source files."
+    params: {column: week, expected: 14}
+  - id: date_format
+    type: format
+    description: "count_date is ISO YYYY-MM-DD."
+    params: {column: count_date, pattern: "YYYY-MM-DD"}
+destination:
+  type: sqlite
+  table: stock_counts
+  path: "${WAREHOUSE_DB}"
+build:
+  test_db: ./warehouse/test_build.db
+  attempts_used: 2
+  status: success
+version: 1

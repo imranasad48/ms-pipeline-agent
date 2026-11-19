@@ -21,6 +21,7 @@ class Settings:
     warehouse_db: Path = REPO_ROOT / "warehouse" / "warehouse.db"   # live; read-only here
     python: str = sys.executable
     max_attempts: int = 4
+    include_manifest: bool = True    # False: ablation -- agent gets no manifest in its case file
 
     @property
     def index_path(self) -> Path:

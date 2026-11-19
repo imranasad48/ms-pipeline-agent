@@ -1,0 +1,122 @@
+# Hand-written mapping: generator failure type -> which detection checks should catch it.
+# This file is the scorer's ONLY statement of what "caught" means. It is written from the
+# check families' documented behaviour (detection/config.yaml, detection/checks/*), NOT
+# tuned against results -- change it only with a written reason.
+#
+# Check ids look like  <family>.<kind>[:<detail>]  (e.g. schema.renamed:quantity->qty).
+# Patterns are fnmatch globs against the full check_id.
+#
+#   checks      PRIMARY patterns. An incident matching one of these, on the injection's
+#               source, date and file, marks the injection CAUGHT (counts for recall).
+#   collateral  patterns that are legitimate *consequences* of the injection (a rename shows
+#               up as missing+new column). They make an incident a true positive for
+#               PRECISION but never mark an injection caught.
+#   blind       true => no current check family can see this failure by design. Injections
+#               are reported 'uncovered' (never 'missed', never dropped). We still record
+#               whether some unrelated incident happened to flag the same file ("incidental").
+#   kind        domain_event types are scored inversely (should NOT be flagged).
+#   needs_records  true => the injection acts on records, so a target file with ZERO records
+#               (e.g. an empty hourly 3PL window) carries no observable effect: 'uncovered'.
+#   date_window_days  allowed |incident date - injection date| (default 0).
+
+# Generator artifact id -> detection source_id. null = no manifest covers that artifact, so
+# the watcher cannot see it at all: injections there are 'uncovered (unmonitored artifact)'.
+artifact_sources:
+  crm.sales_orders: crm_sales_orders_csv
+  tpl.shipments: tpl_shipment_events_json
+  iot.readings: iot_readings
+  manual.stock_count: manual_stock_count
+  erp.products: erp_products
+  crm.customers: null
+  manual.vendor_prices: null
+  erp.inventory_movements: null
+  erp.batches: null
+  erp.suppliers: null
+  erp.warehouses: null
+  erp.warehouse_zones: null
+  erp.purchase_orders: null
+  erp.purchase_order_lines: null
+
+# Artifacts whose source format the detector does NOT parse (detection/readers.py
+# CONTENT_FORMATS = csv/json/sqlite): jsonl (IoT) and xlsx (manual) get freshness checks only
+# (existence / size / mtime). Types whose primary checks are schema/volume/null content checks
+# are therefore 'uncovered' there -- a property of the detector, not a miss to tune away.
+freshness_only_artifacts: [iot.readings, manual.stock_count, manual.vendor_prices]
+
+# Incidents whose check family is environmental (about the live warehouse, not the scenario
+# data). They are listed in results but excluded from precision.
+environmental_check_prefixes: ["run_health."]
+
+types:
+  # ---------------- SCHEMA DRIFT ----------------
+  schema_rename_column:
+    needs_records: true
+    checks: ["schema.renamed:*", "schema.missing_column:*"]   # low name-similarity => reported as missing
+    collateral: ["schema.new_column:*"]
+  schema_drop_column:
+    needs_records: true
+    checks: ["schema.missing_column:*"]
+  schema_type_change:
+    needs_records: true
+    checks: ["schema.type_change:*"]
+  schema_new_column:
+    needs_records: true
+    checks: ["schema.new_column:*"]
+  schema_reorder_columns:
+    needs_records: true
+    checks: ["schema.column_order*"]
+
+  # ---------------- DATA QUALITY ----------------
+  dq_null_spike:
+    checks: ["nulls.spike:*"]
+  dq_duplicate_rows:
+    blind: true        # no uniqueness/duplicate check family; row-count band is far too wide for 6%
+  dq_negative_quantity:
+    blind: true        # no value-range / sign check
+  dq_out_of_range:
+    blind: true        # no value-range check
+  dq_referential_break:
+    blind: true        # no cross-source key check
+  dq_unit_change:
+    blind: true        # distribution shift in values; no value-distribution check
+
+  # ---------------- TIMING / DELIVERY ----------------
+  timing_late_file:
+    checks: ["freshness.late_file"]
+  timing_missing_file:    # absent / 0-byte / truncated
+    checks: ["freshness.missing_file", "freshness.empty_file", "freshness.truncated_file",
+             "freshness.unreadable_file"]
+  timing_stale_data:
+    blind: true        # yesterday's content under today's name: schema/volume identical, mtime fresh
+  timing_out_of_order:
+    blind: true        # row ordering is not inspected
+
+  # ---------------- IOT ----------------
+  iot_sensor_dropout:
+    checks: ["volume.row_count"]     # a gap removes rows; visible only if the day leaves the learned band
+  iot_flatline:
+    blind: true        # constant values; no variance check
+  iot_battery_death:
+    blind: true        # decaying values; no drift check
+  iot_corrupt_json_line:
+    checks: ["freshness.truncated_file", "freshness.unreadable_file", "volume.row_count"]
+
+  # ---------------- EXCEL / HUMAN ----------------
+  excel_date_formats:
+    blind: true        # manifest only types date columns as string; no format rule for this sheet
+  excel_trailing_spaces:
+    blind: true        # whitespace is not inspected
+  excel_typo_product_codes:
+    blind: true        # no reference-data check
+  excel_renamed_sheet:
+    checks: ["freshness.*", "schema.missing_column:*", "volume.row_count"]
+  excel_merged_header:
+    checks: ["schema.*", "freshness.*", "volume.row_count"]
+
+  # ---------------- DOMAIN EVENTS (not data errors; must NOT be flagged) ----------------
+  domain_temp_excursion:
+    kind: domain_event
+  domain_delivery_delay:
+    kind: domain_event
+  domain_expired_batch_in_stock:
+    kind: domain_event

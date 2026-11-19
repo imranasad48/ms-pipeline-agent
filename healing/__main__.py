@@ -22,6 +22,8 @@ def main(argv=None) -> int:
     ap.add_argument("--incidents-db", type=Path)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("heal"); p.add_argument("--incident-id", required=True)
+    p.add_argument("--no-manifest", action="store_true",
+                   help="ablation: leave the pipeline manifest out of the agent's staged case")
     sub.add_parser("list")
     p = sub.add_parser("show"); p.add_argument("proposal_id")
     p = sub.add_parser("apply"); p.add_argument("proposal_id")
@@ -35,6 +37,7 @@ def main(argv=None) -> int:
     if a.incidents_db:
         s.incidents_db = a.incidents_db.resolve()
     if a.cmd == "heal":
+        s.include_manifest = not a.no_manifest
         from .heal import run_heal
         _, verdict = run_heal(s, a.incident_id)
         return 0 if verdict in ("READY_FOR_APPROVAL", "ESCALATED") else 1

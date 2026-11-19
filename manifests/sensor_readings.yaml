@@ -1,0 +1,102 @@
+manifest_version: 1
+pipeline_id: sensor_readings
+brief: "Load the IoT cold-chain sensor readings (temperature, humidity, battery per device) into the warehouse as a table named sensor_readings, keeping device and location identifiers and reading timestamps."
+created: "2026-11-19"
+sources:
+  - id: iot_readings
+    format: jsonl
+    path_pattern: "${DATA_ROOT}/iot/sensor_readings_*.jsonl"
+    expected_schema:
+      reading_id: string
+      device_id: string
+      device_type: string
+      location_type: string
+      location_id: string
+      warehouse_id: string
+      timestamp: string
+      temperature_c: float64
+      temperature_unit: string
+      humidity_pct: float64
+      battery_level: float64
+      signal_strength_dbm: int64
+      firmware: string
+      excursion_flag: int64
+      seq: int64
+    observed:
+      files: 90
+      total_rows: 232625
+      null_rates:
+        reading_id: 0.0
+        device_id: 0.0
+        device_type: 0.0
+        location_type: 0.0
+        location_id: 0.0
+        warehouse_id: 0.0
+        timestamp: 0.0
+        temperature_c: 0.0
+        temperature_unit: 0.0
+        humidity_pct: 0.0
+        battery_level: 0.0
+        signal_strength_dbm: 0.0
+        firmware: 0.0
+        excursion_flag: 0.0
+        seq: 0.0
+steps:
+  - id: extract
+    file: dags/sensor_readings/pipeline.py
+    function: extract
+    description: "Read all daily IoT JSONL files and stage them."
+  - id: transform
+    file: dags/sensor_readings/pipeline.py
+    function: transform
+    description: "Enforce column types, trim strings, normalise timestamps, dedupe on reading_id."
+  - id: load
+    file: dags/sensor_readings/pipeline.py
+    function: load
+    description: "Drop and recreate warehouse table sensor_readings (full reload), reading_id primary key, index on (device_id, timestamp)."
+  - id: validate
+    file: dags/sensor_readings/pipeline.py
+    function: validate
+    description: "Run all validation_checks; raise on failure."
+validation_checks:
+  - id: row_count_equals_source
+    type: row_count
+    description: "Row count equals distinct reading_id across source files (and > 0)."
+    params: {table: sensor_readings, expected: distinct_source_reading_id, build_value: 232625}
+  - id: pk_unique_reading_id
+    type: unique
+    description: "reading_id is unique."
+    params: {columns: [reading_id]}
+  - id: schema_columns_present
+    type: schema
+    description: "All 15 source columns exist, in order."
+    params: {columns: [reading_id, device_id, device_type, location_type, location_id, warehouse_id, timestamp, temperature_c, temperature_unit, humidity_pct, battery_level, signal_strength_dbm, firmware, excursion_flag, seq]}
+  - id: not_null_required
+    type: not_null
+    description: "Identifiers, timestamp, temperature, humidity, battery are non-null."
+    params: {columns: [reading_id, device_id, location_id, timestamp, temperature_c, humidity_pct, battery_level]}
+  - id: humidity_range
+    type: range
+    description: "humidity_pct within 0-100."
+    params: {column: humidity_pct, min: 0, max: 100}
+  - id: battery_range
+    type: range
+    description: "battery_level within 0-100."
+    params: {column: battery_level, min: 0, max: 100}
+  - id: temperature_range_and_unit
+    type: range
+    description: "temperature_c within -60..60 and temperature_unit is C."
+    params: {column: temperature_c, min: -60, max: 60, unit: C}
+  - id: timestamp_format
+    type: format
+    description: "timestamp is ISO 8601 YYYY-MM-DDTHH:MM:SS."
+    params: {column: timestamp, pattern: "YYYY-MM-DDTHH:MM:SS"}
+destination:
+  type: sqlite
+  table: sensor_readings
+  path: "${WAREHOUSE_DB}"
+build:
+  test_db: ./warehouse/test_build.db
+  attempts_used: 1
+  status: success
+version: 1
