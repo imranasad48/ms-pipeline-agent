@@ -1,3 +1,5 @@
 logs/
 __pycache__/
 warehouse/*.db
+.DS_Store
+**/.DS_Store

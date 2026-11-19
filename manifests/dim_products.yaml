@@ -1,0 +1,100 @@
+manifest_version: 1
+pipeline_id: dim_products
+brief: "Load the product catalog from the ERP database into the warehouse as a table named dim_products, keeping the cold-chain flag and storage requirements."
+created: "2026-11-14"
+sources:
+  - id: erp_products
+    format: sqlite
+    path_pattern: "${DATA_ROOT}/erp/erp.db#products"
+    expected_schema:
+      product_id: string
+      sku: string
+      product_name: string
+      brand_name: string
+      dosage_form: string
+      strength: string
+      pack_size: string
+      is_cold_chain: int64
+      storage_requirement: string
+      storage_min_c: float64
+      storage_max_c: float64
+      unit_price: float64
+      currency: string
+      supplier_id: string
+      atc_code: string
+      requires_prescription: int64
+      shelf_life_days: int64
+      is_active: int64
+    observed:
+      files: 1
+      total_rows: 120
+      null_rates:
+        product_id: 0.0
+        sku: 0.0
+        product_name: 0.0
+        brand_name: 0.0
+        dosage_form: 0.0
+        strength: 0.0
+        pack_size: 0.0
+        is_cold_chain: 0.0
+        storage_requirement: 0.0
+        storage_min_c: 0.0
+        storage_max_c: 0.0
+        unit_price: 0.0
+        currency: 0.0
+        supplier_id: 0.0
+        atc_code: 0.0
+        requires_prescription: 0.0
+        shelf_life_days: 0.0
+        is_active: 0.0
+steps:
+  - id: extract
+    file: dags/dim_products/pipeline.py
+    function: extract
+    description: "Read erp.db products table (read-only) and stage it."
+  - id: transform
+    file: dags/dim_products/pipeline.py
+    function: transform
+    description: "Enforce column types, trim strings, dedupe on product_id."
+  - id: load
+    file: dags/dim_products/pipeline.py
+    function: load
+    description: "Drop and recreate warehouse table dim_products (full reload) with product_id primary key."
+  - id: validate
+    file: dags/dim_products/pipeline.py
+    function: validate
+    description: "Run all validation_checks; raise on failure."
+validation_checks:
+  - id: row_count_equals_source
+    type: row_count
+    description: "Row count equals distinct product_id in ERP products (and > 0)."
+    params: {table: dim_products, expected: distinct_source_product_id, build_value: 120}
+  - id: pk_unique_product_id
+    type: unique
+    description: "product_id is unique."
+    params: {columns: [product_id]}
+  - id: schema_columns_present
+    type: schema
+    description: "All 18 source columns exist, in order, including is_cold_chain and storage_requirement/min/max."
+    params: {columns: [product_id, sku, product_name, brand_name, dosage_form, strength, pack_size, is_cold_chain, storage_requirement, storage_min_c, storage_max_c, unit_price, currency, supplier_id, atc_code, requires_prescription, shelf_life_days, is_active]}
+  - id: not_null_required
+    type: not_null
+    description: "No NULLs in key, identity, cold-chain and storage requirement columns."
+    params: {columns: [product_id, sku, product_name, is_cold_chain, storage_requirement]}
+  - id: cold_chain_flag_boolean
+    type: accepted_values
+    description: "is_cold_chain only contains 0 or 1."
+    params: {column: is_cold_chain, values: [0, 1]}
+  - id: cold_chain_reconciliation
+    type: reconciliation
+    description: "SUM(is_cold_chain) equals source SUM(is_cold_chain)."
+    params: {expression: "SUM(is_cold_chain)", expected: source_sum_is_cold_chain, build_value: 42}
+destination:
+  type: sqlite
+  table: dim_products
+  path: "${WAREHOUSE_DB}"
+build:
+  test_db: ./warehouse/test_build.db
+  attempts_used: 1
+  status: success
+version: 1
