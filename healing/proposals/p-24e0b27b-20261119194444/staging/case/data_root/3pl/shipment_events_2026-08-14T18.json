@@ -1,0 +1,36 @@
+{
+  "api_version": "1.4",
+  "provider": "SwiftPharma Logistics",
+  "endpoint": "/v1/shipments/events",
+  "request_id": "req-20260814T18-0001",
+  "generated_at": "2026-08-14T19:08:00+05:00",
+  "window_start": "2026-08-14T18:00:00+05:00",
+  "window_end": "2026-08-14T19:00:00+05:00",
+  "page": 1,
+  "page_size": 500,
+  "has_more": false,
+  "record_count": 1,
+  "events": [
+    {
+      "event_id": "EVT-TRK202608140022-4",
+      "tracking_id": "TRK202608140022",
+      "sales_order_id": "SO-20260814-0022",
+      "customer_id": "CUST-00176",
+      "status": "returned",
+      "event_timestamp": "2026-08-14T18:30:23+05:00",
+      "recorded_at": "2026-08-14T18:40:23+05:00",
+      "vehicle_id": "VEH-008",
+      "driver_id": "DRV-441",
+      "hub_code": "HUB-ISL",
+      "origin_warehouse_id": "WH-01",
+      "destination_city": "Hyderabad",
+      "temperature_controlled": true,
+      "service_level": "cold_chain_2_8c",
+      "promised_delivery_at": "2026-08-17T17:00:00+05:00",
+      "pieces": 1,
+      "weight_kg": 30.47,
+      "notes": "address not found",
+      "is_late": 0
+    }
+  ]
+}

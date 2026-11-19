@@ -1,0 +1,1 @@
+{"decision":"FIX","root_cause":"Shipment events file used camelCase vehicleId instead of vehicle_id, failing the extract schema check.","attempts":1,"files_changed":["dags/delivery_performance/pipeline.py"]}

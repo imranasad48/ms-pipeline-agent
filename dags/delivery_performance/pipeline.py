@@ -47,7 +47,8 @@ EVENT_SCHEMA = {
     "promised_delivery_at": "datetime", "pieces": "int64", "weight_kg": "float64",
     "notes": "string", "is_late": "int64",
 }
-EVENT_STATUSES = {"picked_up", "in_transit", "delivered", "returned"}
+EVENT_KEY_ALIASES = {"vehicleId": "vehicle_id"}
+EVENT_STATUSES ={"picked_up", "in_transit", "delivered", "returned"}
 LOCAL_TZ = "+05:00"  # source feeds are Pakistan time; outputs normalised to it
 
 # Output table: column -> SQLite type ; NOT NULL columns listed separately.
@@ -159,6 +160,10 @@ def extract_shipments() -> dict:
         n_files += 1
         n_empty += not events
         for e in events:
+            # schema drift: accept renamed keys (e.g. vehicleId) and map to canonical names
+            for old, new in EVENT_KEY_ALIASES.items():
+                if old in e and new not in e:
+                    e[new] = e.pop(old)
             missing = set(EVENT_SCHEMA) - set(e)
             if missing:
                 raise ValueError(f"{os.path.basename(f)} event {e.get('event_id')} "

@@ -1,0 +1,57 @@
+{
+ "proposal_id": "p-24e0b27b-20261119194243",
+ "incident_id": "inc_24e0b27bf04ee5c7",
+ "pipeline_id": "delivery_performance",
+ "business_date": "2026-08-14",
+ "steps": [
+  "extract_orders",
+  "extract_shipments",
+  "transform",
+  "load",
+  "validate"
+ ],
+ "live_files": [
+  "dags/delivery_performance/__init__.py",
+  "dags/delivery_performance/pipeline.py",
+  "manifests/delivery_performance.yaml"
+ ],
+ "original_sha256": {
+  "dags/delivery_performance/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "dags/delivery_performance/pipeline.py": "51c0dcfd116070f8c0865157f0ce38106fd87640cc80c3e9179846606d8c86d9",
+  "manifests/delivery_performance.yaml": "09f2221122804b87bbd4af96e0f2c5c34ff6607af59c46f4a2954c80dafac8c3"
+ },
+ "data_root": "/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/data_generation/data",
+ "scope": {
+  "business_date": "2026-08-14",
+  "files_copied": 21,
+  "copied": [
+   "3pl/shipment_events_2026-08-14T00.json",
+   "3pl/shipment_events_2026-08-14T01.json",
+   "3pl/shipment_events_2026-08-14T02.json",
+   "3pl/shipment_events_2026-08-14T03.json",
+   "3pl/shipment_events_2026-08-14T04.json",
+   "3pl/shipment_events_2026-08-14T05.json",
+   "3pl/shipment_events_2026-08-14T08.json",
+   "3pl/shipment_events_2026-08-14T09.json",
+   "3pl/shipment_events_2026-08-14T10.json",
+   "3pl/shipment_events_2026-08-14T11.json",
+   "3pl/shipment_events_2026-08-14T13.json",
+   "3pl/shipment_events_2026-08-14T14.json",
+   "3pl/shipment_events_2026-08-14T15.json",
+   "3pl/shipment_events_2026-08-14T16.json",
+   "3pl/shipment_events_2026-08-14T17.json",
+   "3pl/shipment_events_2026-08-14T18.json",
+   "3pl/shipment_events_2026-08-14T19.json",
+   "3pl/shipment_events_2026-08-14T21.json",
+   "3pl/shipment_events_2026-08-14T22.json",
+   "3pl/shipment_events_2026-08-14T23.json",
+   "crm/sales_orders_2026-08-14.csv"
+  ],
+  "quarantined": [
+   "3pl/shipment_events_2026-08-14T06.json",
+   "3pl/shipment_events_2026-08-14T07.json",
+   "3pl/shipment_events_2026-08-14T20.json"
+  ]
+ },
+ "created_at": "2026-11-19T19:42:43"
+}

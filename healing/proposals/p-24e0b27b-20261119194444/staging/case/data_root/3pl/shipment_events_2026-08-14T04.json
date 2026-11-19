@@ -1,0 +1,14 @@
+{
+  "api_version": "1.4",
+  "provider": "SwiftPharma Logistics",
+  "endpoint": "/v1/shipments/events",
+  "request_id": "req-20260814T04-0000",
+  "generated_at": "2026-08-14T05:08:00+05:00",
+  "window_start": "2026-08-14T04:00:00+05:00",
+  "window_end": "2026-08-14T05:00:00+05:00",
+  "page": 1,
+  "page_size": 500,
+  "has_more": false,
+  "record_count": 0,
+  "events": []
+}

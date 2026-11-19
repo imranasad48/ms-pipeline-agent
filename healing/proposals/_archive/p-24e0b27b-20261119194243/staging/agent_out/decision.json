@@ -1,0 +1,1 @@
+{"decision": "FIX", "root_cause": "3PL file for hour 11 renamed event key vehicle_id to vehicleId, tripping the required-field check in extract_shipments.", "attempts": 1, "files_changed": ["dags/delivery_performance/pipeline.py"]}

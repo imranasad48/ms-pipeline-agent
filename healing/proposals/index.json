@@ -1,0 +1,34 @@
+{
+ "p-24e0b27b-20261119194243": {
+  "check_id": "schema.renamed:vehicle_id->vehicleId",
+  "created_at": "2026-11-19T19:42:43",
+  "decision": "FIX",
+  "incident_id": "inc_24e0b27bf04ee5c7",
+  "pipeline_id": "delivery_performance",
+  "reject_reason": "Harness false failure: quarantined-scope artifact (shipment_fields_complete) counted as regression; control run added",
+  "status": "REJECTED",
+  "updated_at": "2026-11-19T19:43:51"
+ },
+ "p-24e0b27b-20261119194351": {
+  "check_id": "schema.renamed:vehicle_id->vehicleId",
+  "created_at": "2026-11-19T19:43:51",
+  "decision": "FIX",
+  "incident_id": "inc_24e0b27bf04ee5c7",
+  "pipeline_id": "delivery_performance",
+  "reject_reason": "superseded: harness refined (never-ran checks now counted), re-run for final case file",
+  "status": "REJECTED",
+  "updated_at": "2026-11-19T19:44:43"
+ },
+ "p-24e0b27b-20261119194444": {
+  "applied_files": [
+   "dags/delivery_performance/pipeline.py"
+  ],
+  "check_id": "schema.renamed:vehicle_id->vehicleId",
+  "created_at": "2026-11-19T19:44:44",
+  "decision": "FIX",
+  "incident_id": "inc_24e0b27bf04ee5c7",
+  "pipeline_id": "delivery_performance",
+  "status": "APPLIED",
+  "updated_at": "2026-11-19T19:51:42"
+ }
+}

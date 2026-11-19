@@ -4,3 +4,5 @@ warehouse/*.db
 .DS_Store
 **/.DS_Store
 detection/incidents.db
+healing/proposals/*/work/
+healing/proposals/_archive/*/work/

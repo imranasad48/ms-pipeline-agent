@@ -1,0 +1,72 @@
+{
+ "incident_id": "inc_24e0b27bf04ee5c7",
+ "detected_at": "2026-11-19T14:19:32+00:00",
+ "business_date": "2026-08-14",
+ "pipeline_id": "delivery_performance",
+ "source_id": "tpl_shipment_events_json",
+ "check_id": "schema.renamed:vehicle_id->vehicleId",
+ "check_family": "schema",
+ "severity": "warn",
+ "expected_json": "{\"column_contract\": {\"column\": \"vehicle_id\"}}",
+ "observed_json": "{\"files_affected\": 1, \"per_file\": {\"3pl/shipment_events_2026-08-14T11.json\": {\"column\": \"vehicleId\"}}}",
+ "affected_files_json": "[\"3pl/shipment_events_2026-08-14T11.json\"]",
+ "status": "open",
+ "same_day": [
+  {
+   "incident_id": "inc_01074159ba0b65a4",
+   "detected_at": "2026-11-19T14:19:32+00:00",
+   "business_date": "2026-08-14",
+   "pipeline_id": "delivery_performance",
+   "source_id": "tpl_shipment_events_json",
+   "check_id": "freshness.missing_file",
+   "check_family": "freshness",
+   "severity": "critical",
+   "expected_json": "{\"files_expected\": 24}",
+   "observed_json": "{\"files_affected\": 1, \"per_file\": {\"3pl/shipment_events_2026-08-14T12.json\": {\"size\": 0}}}",
+   "affected_files_json": "[\"3pl/shipment_events_2026-08-14T12.json\"]",
+   "status": "open"
+  },
+  {
+   "incident_id": "inc_6227b925b2a777e3",
+   "detected_at": "2026-11-19T14:19:32+00:00",
+   "business_date": "2026-08-14",
+   "pipeline_id": "delivery_performance",
+   "source_id": "tpl_shipment_events_json",
+   "check_id": "freshness.truncated_file",
+   "check_family": "freshness",
+   "severity": "critical",
+   "expected_json": "{\"files_expected\": 24}",
+   "observed_json": "{\"files_affected\": 1, \"per_file\": {\"3pl/shipment_events_2026-08-14T07.json\": {\"detail\": \"record_count 10 != 11 events\"}}}",
+   "affected_files_json": "[\"3pl/shipment_events_2026-08-14T07.json\"]",
+   "status": "open"
+  },
+  {
+   "incident_id": "inc_6db44da74e7bca07",
+   "detected_at": "2026-11-19T14:19:32+00:00",
+   "business_date": "2026-08-14",
+   "pipeline_id": "delivery_performance",
+   "source_id": "tpl_shipment_events_json",
+   "check_id": "schema.missing_column:hub_code",
+   "check_family": "schema",
+   "severity": "warn",
+   "expected_json": "{\"column_contract\": {\"present\": true}}",
+   "observed_json": "{\"files_affected\": 1, \"per_file\": {\"3pl/shipment_events_2026-08-14T20.json\": {\"present\": false}}}",
+   "affected_files_json": "[\"3pl/shipment_events_2026-08-14T20.json\"]",
+   "status": "open"
+  },
+  {
+   "incident_id": "inc_5268695c59c1fc90",
+   "detected_at": "2026-11-19T14:19:32+00:00",
+   "business_date": "2026-08-14",
+   "pipeline_id": "delivery_performance",
+   "source_id": "tpl_shipment_events_json",
+   "check_id": "nulls.spike:weight_kg",
+   "check_family": "volume_nulls",
+   "severity": "warn",
+   "expected_json": "{\"baseline_null_rate\": 0.0, \"max_null_rate\": 0.05}",
+   "observed_json": "{\"files_affected\": 1, \"per_file\": {\"3pl/shipment_events_2026-08-14T06.json\": {\"null_rate\": 0.25, \"rows\": 4}}}",
+   "affected_files_json": "[\"3pl/shipment_events_2026-08-14T06.json\"]",
+   "status": "open"
+  }
+ ]
+}
