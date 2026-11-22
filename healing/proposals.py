@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import datetime as dt
+import contextlib
 import difflib
+import fcntl
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -24,12 +27,23 @@ def _read_index(settings: Settings) -> dict:
     return json.loads(p.read_text()) if p.exists() else {}
 
 
-def update_index(settings: Settings, proposal_id: str, **fields) -> None:
+@contextlib.contextmanager
+def _index_lock(settings: Settings):
+    """Cross-process lock: the orchestrator and the dashboard both write index.json."""
     settings.proposals_dir.mkdir(parents=True, exist_ok=True)
-    idx = _read_index(settings)
-    idx.setdefault(proposal_id, {}).update(fields)
-    idx[proposal_id]["updated_at"] = dt.datetime.now().isoformat(timespec="seconds")
-    settings.index_path.write_text(json.dumps(idx, indent=1, sort_keys=True))
+    with open(settings.proposals_dir / ".index.lock", "w") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        yield
+
+
+def update_index(settings: Settings, proposal_id: str, **fields) -> None:
+    with _index_lock(settings):
+        idx = _read_index(settings)
+        idx.setdefault(proposal_id, {}).update(fields)
+        idx[proposal_id]["updated_at"] = dt.datetime.now().isoformat(timespec="seconds")
+        tmp = settings.index_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(idx, indent=1, sort_keys=True))
+        os.replace(tmp, settings.index_path)      # readers never see a half-written file
 
 
 def list_proposals(settings: Settings) -> list:

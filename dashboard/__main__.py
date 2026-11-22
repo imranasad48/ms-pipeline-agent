@@ -1,14 +1,12 @@
 """CLI:  python -m dashboard {build,serve,dump}
 
 build  -> dashboard/site/index.html (static, self-contained)
-serve  -> build, then serve dashboard/site on http://localhost:8099
+serve  -> live server on http://localhost:8099: rebuilt per request, auto-refresh, approve/reject
 dump   -> the same data as plain text (what the page shows), for terminals and tests
 """
 from __future__ import annotations
 
 import argparse
-import functools
-import http.server
 import sys
 from pathlib import Path
 
@@ -63,16 +61,19 @@ def main(argv=None) -> int:
     if a.cmd == "dump":
         print(dump(paths))
         return 0
-    out = build(paths)
-    print(f"built {out}")
-    if a.cmd == "serve":
-        handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(paths.site))
-        with http.server.ThreadingHTTPServer(("127.0.0.1", a.port), handler) as srv:
-            print(f"serving http://localhost:{a.port}  (Ctrl-C to stop)")
-            try:
-                srv.serve_forever()
-            except KeyboardInterrupt:
-                pass
+    if a.cmd == "build":
+        print(f"built {build(paths)}")
+        return 0
+    from healing.settings import Settings
+    from .server import make_server
+    srv = make_server(paths, Settings(), a.port)
+    print(f"live dashboard http://localhost:{a.port}  (rebuilds per request, refreshes every 5s; Ctrl-C to stop)")
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        srv.server_close()
     return 0
 
 

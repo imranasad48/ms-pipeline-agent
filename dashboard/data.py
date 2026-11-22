@@ -27,6 +27,7 @@ class Paths:
     proposals: Path = REPO / "healing" / "proposals" / "index.json"
     eval_summary: Path = REPO / "evaluation" / "results" / "summary.md"
     site: Path = REPO / "dashboard" / "site"
+    orch_status: Path = REPO / "orchestrator" / "status.json"
 
 
 # ---------------------------------------------------------------- pipelines
@@ -99,7 +100,10 @@ def summarize_incidents(df: pd.DataFrame) -> dict:
             "by_source": sources,
             "date_range": ([str(df["business_date"].min()), str(df["business_date"].max())]
                            if len(df) else None),
-            "recent_open": newest.to_dict("records")}
+            "recent_open": newest.to_dict("records"),
+            "recent_closed": (df[df["status"] != "open"].sort_values(
+                ["business_date", "detected_at"], ascending=False).head(10).to_dict("records")
+                if len(df) else [])}
 
 
 # ---------------------------------------------------------------- proposals
@@ -121,6 +125,39 @@ def summarize_proposals(rows: list[dict]) -> dict:
     return counts
 
 
+_SECTION = re.compile(r"^## (.+)$", re.M)
+
+
+def load_proposal_detail(index_path: Path, proposal_id: str) -> dict:
+    """Diagnosis / diff / validation table of one proposal, cut out of its proposal.md."""
+    out = {"diagnosis": "", "diff": "", "validation": "", "header": ""}
+    for base in (Path(index_path).parent, Path(index_path).parent / "_archive"):
+        f = base / proposal_id / "proposal.md"
+        if f.exists():
+            break
+    else:
+        return out
+    text = f.read_text()
+    parts = _SECTION.split(text)          # [preamble, title1, body1, title2, body2, ...]
+    out["header"] = parts[0]
+    for title, body in zip(parts[1::2], parts[2::2]):
+        if title.startswith("Diagnosis"):
+            out["diagnosis"] = body.strip()
+        elif title.startswith("Proposed change"):
+            m = re.search(r"```diff\n(.*?)```", body, re.S)
+            out["diff"] = m.group(1).rstrip() if m else ""
+        elif title.startswith("Validation"):
+            out["validation"] = body.strip()
+    return out
+
+
+def load_orchestrator_status(path: Path) -> dict:
+    try:
+        return json.loads(Path(path).read_text())
+    except (OSError, ValueError):
+        return {}
+
+
 # --------------------------------------------------------------- evaluation
 def load_eval_summary(path: Path) -> dict | None:
     """The latest evaluation summary (markdown) split into {'generated', 'markdown'}; None if absent."""
@@ -138,7 +175,13 @@ def assemble(paths: Paths | None = None) -> dict:
     paths = paths or Paths()
     inc = load_incidents(paths.incidents)
     props = load_proposals(paths.proposals)
-    return {"pipelines": load_pipelines(paths.manifests, paths.warehouse),
+    status_of = dict(zip(inc["incident_id"], inc["status"])) if len(inc) else {}
+    for r in props:
+        r["incident_status"] = status_of.get(r["incident_id"], "")
+    ready = [{**r, **load_proposal_detail(paths.proposals, r["proposal_id"])}
+             for r in props if r["status"] == "READY_FOR_APPROVAL"]
+    return {"ready": ready, "orchestrator": load_orchestrator_status(paths.orch_status),
+            "pipelines": load_pipelines(paths.manifests, paths.warehouse),
             "incidents": summarize_incidents(inc),
             "proposals": props, "proposal_counts": summarize_proposals(props),
             "evaluation": load_eval_summary(paths.eval_summary)}

@@ -1,0 +1,12 @@
+# Which incidents the orchestrator may heal without a human starting it.
+# An incident is auto-healed only if its check_id starts with one of these prefixes
+# (and it is an open warn/critical incident). Everything else is left for humans.
+# run_health.* is never healed (hard-coded; it is about the warehouse, not the data).
+auto_heal_prefixes:
+  - schema.
+  - value_range.
+  - duplicates.
+  - volume.
+  - nulls.
+
+poll_seconds: 5

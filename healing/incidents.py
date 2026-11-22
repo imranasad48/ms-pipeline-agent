@@ -33,12 +33,20 @@ def open_incidents(settings: Settings, healable_only: bool = False) -> list:
                  "ORDER BY business_date, detected_at, incident_id")
 
 
+LIVE_STATUSES = ("READY_FOR_APPROVAL", "ESCALATED", "APPLIED")
+
+
+def incidents_with_proposals(settings: Settings, statuses=LIVE_STATUSES) -> set:
+    """Incident ids that already have a proposal in one of ``statuses``."""
+    return {p["incident_id"] for p in list_proposals(settings)
+            if p.get("incident_id") and p.get("status") in statuses}
+
+
 def pick_next_incident(settings: Settings) -> dict | None:
     """The incident ``heal-next`` works on: oldest open warn/critical, skipping run_health.*.
     Incidents that already have a live (not rejected) proposal are passed over, so repeated
     heal-next calls move through the queue instead of redoing the same one."""
-    busy = {p["incident_id"] for p in list_proposals(settings)
-            if p.get("incident_id") and p.get("status") in ("READY_FOR_APPROVAL", "ESCALATED", "APPLIED")}
+    busy = incidents_with_proposals(settings)
     for inc in open_incidents(settings, healable_only=True):
         if inc["incident_id"] not in busy:
             return inc

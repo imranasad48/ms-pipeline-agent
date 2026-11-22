@@ -1,0 +1,20 @@
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-ffb5e
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-ffb5e
+  [tool] Grep: {'pattern': 'hub_code|hubCode', 'path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-ffb5e
+  [tool] Bash: {'command': 'head -c 900 case/raw_files/*/shipment_events_2026-10-20T11.json 2>/dev/null || find case/raw_file
+Simple rename; add alias.
+  [tool] Edit: {'replace_all': False, 'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/hea
+  [tool] Bash: {'command': 'mkdir -p agent_out; /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/.venv/bin/python /User
+  [tool] Bash: {'command': 'cat > agent_out/diagnosis.md <<\'E\'\n# inc_ffb5e01ef96f04cb – hub_code renamed to hubCode\n\n**R
+The incident is a plumbing defect, so I patched it. The 3PL file `shipment_events_2026-10-20T11.json` sends `hubCode` instead of `hub_code`, with the same values (e.g. `HUB-SIA`). `extract_shipments` failed because it saw `hub_code` as missing.
+
+I added `"hubCode": "hub_code"` to `EVENT_KEY_ALIASES` in `dags/delivery_performance/pipeline.py`. The existing alias mapping runs before the schema check, so the pipeline now accepts both the old and new key. No validation check was changed, and the manifest is untouched.
+
+The self-test passed on the first attempt for all steps except `validate`, which still fails. The two failures left are `all_events_accounted` and `event_orders_exist_in_crm`. Both are partial-data-slice artifacts from the control run. `shipment_fields_complete`, which also failed in the control run, now passes.
+
+The separate `freshness.late_file` incident on the same file is a late-arrival signal, so I did not touch it.
+
+I wrote `agent_out/diagnosis.md` and `agent_out/decision.json`.
+
+DECISION: FIX
