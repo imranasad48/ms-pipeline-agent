@@ -1,0 +1,90 @@
+[build] schema_rename_column/20260904: exists, skipping (use --force to rebuild)
+[build] schema_drop_column/20260904: 113 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/schema_drop_column/20260904
+[build] schema_type_change/20260904: 113 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/schema_type_change/20260904
+[build] schema_new_column/20260904: 113 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/schema_new_column/20260904
+[build] schema_reorder_columns/20260904: 112 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/schema_reorder_columns/20260904
+[build] dq_null_spike/20260904: exists, skipping (use --force to rebuild)
+[build] dq_duplicate_rows/20260904: 113 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/dq_duplicate_rows/20260904
+[build] dq_negative_quantity/20260904: 112 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/dq_negative_quantity/20260904
+[build] dq_out_of_range/20260904: 112 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/dq_out_of_range/20260904
+[build] dq_referential_break/20260904: 113 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/dq_referential_break/20260904
+[build] dq_unit_change/20260904: 112 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/dq_unit_change/20260904
+[build] timing_late_file/20260904: 113 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/timing_late_file/20260904
+[build] timing_missing_file/20260904: exists, skipping (use --force to rebuild)
+[build] timing_stale_data/20260904: 113 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/timing_stale_data/20260904
+[build] timing_out_of_order/20260904: 113 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/timing_out_of_order/20260904
+[build] iot_sensor_dropout/20260904: 112 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/iot_sensor_dropout/20260904
+[build] iot_flatline/20260904: 112 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/iot_flatline/20260904
+[build] iot_battery_death/20260904: 112 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/iot_battery_death/20260904
+[build] iot_corrupt_json_line/20260904: 112 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/iot_corrupt_json_line/20260904
+[build] excel_date_formats/20260904: 112 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/excel_date_formats/20260904
+[build] excel_trailing_spaces/20260904: 112 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/excel_trailing_spaces/20260904
+[build] excel_typo_product_codes/20260904: 112 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/excel_typo_product_codes/20260904
+[build] excel_renamed_sheet/20260904: 112 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/excel_renamed_sheet/20260904
+[build] excel_merged_header/20260904: 112 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/excel_merged_header/20260904
+[build] domain_temp_excursion/20260904: 112 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/domain_temp_excursion/20260904
+[build] domain_delivery_delay/20260904: 112 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/domain_delivery_delay/20260904
+[build] domain_expired_batch_in_stock/20260904: 112 MB -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/domain_expired_batch_in_stock/20260904
+[detect] schema_rename_column/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/schema_rename_column/20260904/incidents.db
+[detect] schema_drop_column/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/schema_drop_column/20260904/incidents.db
+[detect] schema_type_change/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/schema_type_change/20260904/incidents.db
+[detect] schema_new_column/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/schema_new_column/20260904/incidents.db
+[detect] schema_reorder_columns/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/schema_reorder_columns/20260904/incidents.db
+[detect] dq_null_spike/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/dq_null_spike/20260904/incidents.db
+[detect] dq_duplicate_rows/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/dq_duplicate_rows/20260904/incidents.db
+[detect] dq_negative_quantity/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/dq_negative_quantity/20260904/incidents.db
+[detect] dq_out_of_range/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/dq_out_of_range/20260904/incidents.db
+[detect] dq_referential_break/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/dq_referential_break/20260904/incidents.db
+[detect] dq_unit_change/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/dq_unit_change/20260904/incidents.db
+[detect] timing_late_file/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/timing_late_file/20260904/incidents.db
+[detect] timing_missing_file/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/timing_missing_file/20260904/incidents.db
+[detect] timing_stale_data/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/timing_stale_data/20260904/incidents.db
+[detect] timing_out_of_order/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/timing_out_of_order/20260904/incidents.db
+[detect] iot_sensor_dropout/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/iot_sensor_dropout/20260904/incidents.db
+[detect] iot_flatline/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/iot_flatline/20260904/incidents.db
+[detect] iot_battery_death/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/iot_battery_death/20260904/incidents.db
+[detect] iot_corrupt_json_line/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/iot_corrupt_json_line/20260904/incidents.db
+[detect] excel_date_formats/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/excel_date_formats/20260904/incidents.db
+[detect] excel_trailing_spaces/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/excel_trailing_spaces/20260904/incidents.db
+[detect] excel_typo_product_codes/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/excel_typo_product_codes/20260904/incidents.db
+[detect] excel_renamed_sheet/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/excel_renamed_sheet/20260904/incidents.db
+[detect] excel_merged_header/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/excel_merged_header/20260904/incidents.db
+[detect] domain_temp_excursion/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/domain_temp_excursion/20260904/incidents.db
+[detect] domain_delivery_delay/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/domain_delivery_delay/20260904/incidents.db
+[detect] domain_expired_batch_in_stock/20260904: 2026-08-14..2026-11-11 -> /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/scenarios/domain_expired_batch_in_stock/20260904/incidents.db
+| failure type | injections | caught | missed | uncovered | recall | recall (in scope) | precision | matched/incidents |
+|---|---|---|---|---|---|---|---|---|
+| schema_rename_column | 112 | 98 | 0 | 14 | 88% | 100% | 100% | 109/109 |
+| schema_drop_column | 135 | 123 | 0 | 12 | 91% | 100% | 100% | 116/116 |
+| schema_type_change | 107 | 79 | 27 | 1 | 74% | 75% | 100% | 73/73 |
+| schema_new_column | 103 | 101 | 0 | 2 | 98% | 100% | 100% | 86/86 |
+| schema_reorder_columns | 14 | 7 | 0 | 7 | 50% | 100% | 100% | 7/7 |
+| dq_null_spike | 131 | 119 | 0 | 12 | 91% | 100% | 100% | 135/135 |
+| dq_duplicate_rows | 107 | 0 | 0 | 107 | 0% | n/a | 0% | 0/59 |
+| dq_negative_quantity | 4 | 0 | 0 | 4 | 0% | n/a | n/a | 0/0 |
+| dq_out_of_range | 11 | 0 | 0 | 11 | 0% | n/a | n/a | 0/0 |
+| dq_referential_break | 104 | 0 | 0 | 104 | 0% | n/a | n/a | 0/0 |
+| dq_unit_change | 12 | 0 | 0 | 12 | 0% | n/a | n/a | 0/0 |
+| timing_late_file | 132 | 129 | 0 | 3 | 98% | 100% | 100% | 77/77 |
+| timing_missing_file | 101 | 97 | 2 | 2 | 96% | 98% | 100% | 81/81 |
+| timing_stale_data | 119 | 0 | 0 | 119 | 0% | n/a | n/a | 0/0 |
+| timing_out_of_order | 92 | 0 | 0 | 92 | 0% | n/a | n/a | 0/0 |
+| iot_sensor_dropout | 7 | 0 | 0 | 7 | 0% | n/a | n/a | 0/0 |
+| iot_flatline | 4 | 0 | 0 | 4 | 0% | n/a | n/a | 0/0 |
+| iot_battery_death | 5 | 0 | 0 | 5 | 0% | n/a | n/a | 0/0 |
+| iot_corrupt_json_line | 1 | 0 | 0 | 1 | 0% | n/a | n/a | 0/0 |
+| excel_date_formats | 1 | 0 | 0 | 1 | 0% | n/a | n/a | 0/0 |
+| excel_trailing_spaces | 2 | 0 | 0 | 2 | 0% | n/a | n/a | 0/0 |
+| excel_typo_product_codes | 2 | 0 | 0 | 2 | 0% | n/a | n/a | 0/0 |
+| excel_renamed_sheet | 1 | 0 | 0 | 1 | 0% | n/a | n/a | 0/0 |
+| excel_merged_header | 1 | 0 | 0 | 1 | 0% | n/a | n/a | 0/0 |
+
+AGGREGATE (data-error scenarios): recall 58% (753/1308; 526 uncovered), recall in scope 96%, precision 92% (684/743)
+
+Domain events (should NOT be flagged):
+| domain event | injections | flagged (bad) | correctly ignored | of which unmonitored source |
+|---|---|---|---|---|
+| domain_temp_excursion | 9 | 0 | 9 | 0 |
+| domain_delivery_delay | 32 | 0 | 32 | 0 |
+| domain_expired_batch_in_stock | 1 | 0 | 1 | 1 |
+/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/evaluation/results/summary.md

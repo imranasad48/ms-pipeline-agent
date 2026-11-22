@@ -18,7 +18,7 @@ import yaml
 
 from . import config as C
 from .checks.context import Context
-from .engine import date_range, learn_row_count_bands, run_date
+from .engine import date_range, learn_baselines, run_date
 from .incidents import IncidentStore
 from .manifest import load_manifests
 from .report import print_incidents, replay_table, table
@@ -110,8 +110,8 @@ def cmd_baseline(args) -> int:
     """Learn per-file row-count [min,max] per source from CLEAN data."""
     manifests, ctx = _setup(args)
     lo, hi = infer_date_range(ctx.data_root)
-    bands = learn_row_count_bands(manifests, date_range(lo, hi), ctx)
-    text = yaml.safe_dump({"row_count_bands": bands}, sort_keys=True)
+    learned = learn_baselines(manifests, date_range(lo, hi), ctx)
+    text = yaml.safe_dump(learned, sort_keys=True)
     print(text)
     if args.write:
         C.DEFAULT_BASELINES.write_text(
@@ -144,7 +144,7 @@ def main(argv=None) -> int:
     p.add_argument("--date", required=True)
     _common(p, data_root=False)
     p.set_defaults(fn=cmd_incidents)
-    p = sub.add_parser("baseline", help="learn row-count bands from clean data")
+    p = sub.add_parser("baseline", help="learn row-count bands, value ranges, IoT cadence from clean data")
     p.add_argument("--write", action="store_true", help="write detection/baselines.yaml")
     _common(p)
     p.set_defaults(fn=cmd_baseline)

@@ -1,4 +1,236 @@
 # Learned by `python -m detection baseline` from /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/data_generation/data_clean (2026-08-14..2026-11-11).
+iot_behavior:
+  iot_readings:
+    always_on_devices:
+    - IOT-Z001
+    - IOT-Z002
+    - IOT-Z003
+    - IOT-Z004
+    - IOT-Z005
+    - IOT-Z006
+    interval_minutes: 5.0
+known_values:
+  crm_sales_orders_csv:
+    customer_id:
+    - CUST-00001
+    - CUST-00002
+    - CUST-00003
+    - CUST-00004
+    - CUST-00005
+    - CUST-00006
+    - CUST-00007
+    - CUST-00008
+    - CUST-00009
+    - CUST-00010
+    - CUST-00011
+    - CUST-00012
+    - CUST-00013
+    - CUST-00014
+    - CUST-00015
+    - CUST-00016
+    - CUST-00017
+    - CUST-00018
+    - CUST-00019
+    - CUST-00020
+    - CUST-00021
+    - CUST-00022
+    - CUST-00023
+    - CUST-00024
+    - CUST-00025
+    - CUST-00026
+    - CUST-00027
+    - CUST-00028
+    - CUST-00029
+    - CUST-00030
+    - CUST-00031
+    - CUST-00032
+    - CUST-00033
+    - CUST-00034
+    - CUST-00036
+    - CUST-00037
+    - CUST-00039
+    - CUST-00040
+    - CUST-00041
+    - CUST-00042
+    - CUST-00043
+    - CUST-00044
+    - CUST-00045
+    - CUST-00046
+    - CUST-00047
+    - CUST-00048
+    - CUST-00049
+    - CUST-00050
+    - CUST-00051
+    - CUST-00052
+    - CUST-00053
+    - CUST-00054
+    - CUST-00055
+    - CUST-00056
+    - CUST-00057
+    - CUST-00058
+    - CUST-00059
+    - CUST-00060
+    - CUST-00061
+    - CUST-00062
+    - CUST-00063
+    - CUST-00065
+    - CUST-00066
+    - CUST-00067
+    - CUST-00068
+    - CUST-00069
+    - CUST-00070
+    - CUST-00071
+    - CUST-00072
+    - CUST-00073
+    - CUST-00074
+    - CUST-00075
+    - CUST-00076
+    - CUST-00077
+    - CUST-00079
+    - CUST-00080
+    - CUST-00081
+    - CUST-00082
+    - CUST-00083
+    - CUST-00084
+    - CUST-00086
+    - CUST-00087
+    - CUST-00088
+    - CUST-00089
+    - CUST-00090
+    - CUST-00091
+    - CUST-00092
+    - CUST-00093
+    - CUST-00094
+    - CUST-00095
+    - CUST-00096
+    - CUST-00097
+    - CUST-00098
+    - CUST-00100
+    - CUST-00101
+    - CUST-00102
+    - CUST-00103
+    - CUST-00104
+    - CUST-00105
+    - CUST-00106
+    - CUST-00107
+    - CUST-00108
+    - CUST-00109
+    - CUST-00110
+    - CUST-00111
+    - CUST-00112
+    - CUST-00113
+    - CUST-00114
+    - CUST-00115
+    - CUST-00116
+    - CUST-00117
+    - CUST-00118
+    - CUST-00119
+    - CUST-00120
+    - CUST-00122
+    - CUST-00125
+    - CUST-00126
+    - CUST-00127
+    - CUST-00128
+    - CUST-00129
+    - CUST-00130
+    - CUST-00131
+    - CUST-00132
+    - CUST-00133
+    - CUST-00134
+    - CUST-00135
+    - CUST-00136
+    - CUST-00137
+    - CUST-00138
+    - CUST-00139
+    - CUST-00140
+    - CUST-00141
+    - CUST-00142
+    - CUST-00143
+    - CUST-00144
+    - CUST-00145
+    - CUST-00146
+    - CUST-00147
+    - CUST-00148
+    - CUST-00150
+    - CUST-00152
+    - CUST-00153
+    - CUST-00154
+    - CUST-00155
+    - CUST-00156
+    - CUST-00157
+    - CUST-00158
+    - CUST-00159
+    - CUST-00160
+    - CUST-00161
+    - CUST-00163
+    - CUST-00164
+    - CUST-00165
+    - CUST-00166
+    - CUST-00167
+    - CUST-00169
+    - CUST-00170
+    - CUST-00171
+    - CUST-00172
+    - CUST-00173
+    - CUST-00174
+    - CUST-00175
+    - CUST-00176
+    - CUST-00177
+    - CUST-00178
+    - CUST-00180
+    - CUST-00181
+    - CUST-00182
+    - CUST-00183
+    - CUST-00184
+    - CUST-00185
+    - CUST-00186
+    - CUST-00187
+    - CUST-00188
+    - CUST-00189
+    - CUST-00190
+    - CUST-00191
+    - CUST-00192
+    - CUST-00193
+    - CUST-00194
+    - CUST-00195
+    - CUST-00196
+    - CUST-00198
+    - CUST-00199
+  iot_readings:
+    device_id:
+    - IOT-V001
+    - IOT-V002
+    - IOT-V003
+    - IOT-V004
+    - IOT-V005
+    - IOT-V006
+    - IOT-V007
+    - IOT-V008
+    - IOT-V009
+    - IOT-V010
+    - IOT-Z001
+    - IOT-Z002
+    - IOT-Z003
+    - IOT-Z004
+    - IOT-Z005
+    - IOT-Z006
+    location_id:
+    - VEH-001
+    - VEH-002
+    - VEH-003
+    - VEH-004
+    - VEH-005
+    - VEH-006
+    - VEH-007
+    - VEH-008
+    - VEH-009
+    - VEH-010
+    - WH-01-Z1
+    - WH-01-Z2
+    - WH-02-Z1
+    - WH-02-Z2
+    - WH-03-Z1
+    - WH-03-Z2
 row_count_bands:
   crm_sales_orders_csv:
     max: 151
@@ -6,6 +238,93 @@ row_count_bands:
   erp_products:
     max: 120
     min: 120
+  iot_readings:
+    max: 2852
+    min: 1837
+  manual_stock_count:
+    max: 103
+    min: 64
   tpl_shipment_events_json:
     max: 30
     min: 0
+value_ranges:
+  crm_sales_orders_csv:
+    discount_pct:
+      max: 0.12
+      min: 0.0
+    has_cold_chain_items:
+      max: 1.0
+      min: 0.0
+    is_cold_chain:
+      max: 1.0
+      min: 0.0
+    line_no:
+      max: 4.0
+      min: 1.0
+    line_total:
+      max: 6470390.52
+      min: 221.83
+    payment_terms_days:
+      max: 60.0
+      min: 7.0
+    quantity:
+      max: 159.0
+      min: 1.0
+    unit_price:
+      max: 41933.92
+      min: 195.07
+  erp_products:
+    is_active:
+      max: 1.0
+      min: 0.0
+    is_cold_chain:
+      max: 1.0
+      min: 0.0
+    requires_prescription:
+      max: 1.0
+      min: 0.0
+    shelf_life_days:
+      max: 1095.0
+      min: 180.0
+    storage_max_c:
+      max: 25.0
+      min: 8.0
+    storage_min_c:
+      max: 15.0
+      min: 2.0
+    unit_price:
+      max: 41933.92
+      min: 195.07
+  iot_readings:
+    battery_level:
+      max: 99.94
+      min: 52.69
+    humidity_pct:
+      max: 69.74
+      min: 28.77
+    seq:
+      max: 287.0
+      min: 0.0
+    signal_strength_dbm:
+      max: -56.0
+      min: -105.0
+    temperature_c:
+      max: 8.35
+      min: 1.23
+  manual_stock_count:
+    counted_qty:
+      max: 4000.0
+      min: 6.0
+    system_qty:
+      max: 3996.0
+      min: 5.0
+    variance:
+      max: 18.0
+      min: -18.0
+  tpl_shipment_events_json:
+    pieces:
+      max: 8.0
+      min: 1.0
+    weight_kg:
+      max: 54.99
+      min: 0.5

@@ -31,6 +31,57 @@ nulls:
   overrides:
     tpl_shipment_events_json: {notes: 1.0}
 
+# ---- Detection v2 checks --------------------------------------------------------------
+duplicates:
+  max_duplicate_keys: 0          # distinct key values allowed to repeat within a day's data
+  overrides: {}                  # {source_id: max_duplicate_keys}
+  fallback_full_row: true        # no declared key -> flag fully identical rows
+
+stale_data:
+  min_rows: 1                    # a file with fewer rows (idle hourly page) is never "stale"
+
+out_of_order:
+  time_columns:                  # per source: the event/reading timestamp column
+    tpl_shipment_events_json: event_timestamp
+    iot_readings: timestamp
+  window_slack_minutes: 0        # timestamp may leave the file's window by this much
+  max_descents: 0                # timestamp decreases (in file order) allowed per file
+
+value_range:
+  margin: 0.25                   # learned clean [min,max] widened by 25% of |value| each side
+  max_violation_rate: 0.0        # share of a file's values outside bounds allowed
+  # Per-column overrides replace the learned envelope with explicit numbers.
+  #  temperature_c: the clean envelope is the 1-8 C operating range, but genuine cold-chain
+  #  excursions (domain events, must NOT alert as data errors) reach ~16 C. So the bound is
+  #  the physically plausible reefer range [-30, 30]; a F-scale reading (>= 34) and the
+  #  sensor-fault values (-273, -99, 85, 999.9) all fall outside it.
+  overrides:
+    iot_readings:
+      temperature_c: {min: -30, max: 30}
+
+referential:
+  history_days: 400              # parent keys = every parent file up to D (delayed shipments are old orders)
+  required_days: 3               # skip the day if a parent file due in D-3..D is missing/unreadable/stale
+  max_orphan_rate: 0.0
+  # Pairs beyond the ones the manifests declare. Same-named keys across sources.
+  extra:
+    - {child: "3pl.customer_id", parent: "crm.customer_id"}
+    - {child: "crm.product_id",  parent: "erp.product_id"}
+  # Columns whose domain is a small closed set: values must have been seen in clean data.
+  known_values:
+    iot_readings: [location_id, device_id]
+    # No manifest declares a customer master, so the closed set of customers seen in clean orders
+    # stands in for it. Caveat: a genuinely new customer is flagged until baselines are re-learned.
+    crm_sales_orders_csv: [customer_id]
+
+iot_behavior:
+  sources:
+    iot_readings: {device_column: device_id, time_column: timestamp, default_interval_minutes: 5}
+  gap_multiple: 3                # silence longer than 3x the learned reporting interval
+  flatline:
+    column: temperature_c
+    min_run: 8                   # identical consecutive readings (clean data never exceeds 3)
+
 run_health:
   max_load_lag_hours: 36         # table must have been loaded within this long of the day's end
 
@@ -63,3 +114,14 @@ severity:
   run_health.table_missing:  critical
   run_health.table_empty:    critical
   run_health.load_stale:     warn
+  schema.corrupt_line:       warn
+  schema.sheet_renamed:      warn
+  schema.header_row_shift:   warn
+  duplicates.key:            {key: critical, other: warn}
+  stale.identical_to_previous: critical
+  ordering.out_of_window:    warn
+  ordering.non_monotonic:    warn
+  value_range.out_of_bounds: {key: critical, other: warn}
+  referential.orphan:        {key: critical, other: warn}
+  iot.cadence_gap:           critical
+  iot.flatline:              warn

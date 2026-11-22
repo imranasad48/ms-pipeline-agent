@@ -58,6 +58,17 @@ def check_schema(spec: SourceSpec, profiles: list[FileProfile], ctx: Context) ->
         if not p.readable or not p.columns:
             continue          # unreadable files are the freshness family's problem
         ctx.stats.evaluate("schema.header")
+        if p.corrupt_lines:
+            hit("schema.corrupt_line", "schema.corrupt_line", False, p.rel,
+                {"corrupt_lines": len(p.corrupt_lines), "of": p.row_count + len(p.corrupt_lines),
+                 "first_line_numbers": p.corrupt_lines[:10]}, {"corrupt_lines": 0})
+        if spec.format == "xlsx":
+            if spec.sheet and spec.sheet not in p.sheet_names:
+                hit("schema.sheet_renamed", "schema.sheet_renamed", False, p.rel,
+                    {"sheets": p.sheet_names}, {"sheet": spec.sheet})
+            if spec.header_row and p.header_row != spec.header_row:
+                hit("schema.header_row_shift", "schema.header_row_shift", False, p.rel,
+                    {"header_row": p.header_row}, {"header_row": spec.header_row})
         obs = p.columns
         missing = [c for c in exp if c not in obs]
         new = [c for c in obs if c not in spec.expected_schema]
@@ -75,7 +86,7 @@ def check_schema(spec: SourceSpec, profiles: list[FileProfile], ctx: Context) ->
             if c not in renamed_new:
                 hit(f"schema.new_column:{c}", "schema.new_column", False, p.rel,
                     {"present": True}, {"present": False})
-        if spec.format != "json" and not renames:
+        if spec.format != "json" and not renames:       # JSON object key order is not a contract
             common_exp = [c for c in exp if c in obs]
             common_obs = [c for c in obs if c in spec.expected_schema]
             if common_exp != common_obs:

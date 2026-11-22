@@ -8,7 +8,8 @@ import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 
-FAMILIES = ("schema", "volume_nulls", "freshness", "run_health")
+FAMILIES = ("schema", "volume_nulls", "freshness", "run_health", "duplicates", "stale_data",
+            "out_of_order", "value_range", "referential", "iot_behavior")
 SEVERITY_ORDER = {"critical": 0, "warn": 1, "info": 2}
 
 

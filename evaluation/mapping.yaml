@@ -37,11 +37,11 @@ artifact_sources:
   erp.purchase_orders: null
   erp.purchase_order_lines: null
 
-# Artifacts whose source format the detector does NOT parse (detection/readers.py
-# CONTENT_FORMATS = csv/json/sqlite): jsonl (IoT) and xlsx (manual) get freshness checks only
-# (existence / size / mtime). Types whose primary checks are schema/volume/null content checks
-# are therefore 'uncovered' there -- a property of the detector, not a miss to tune away.
-freshness_only_artifacts: [iot.readings, manual.stock_count, manual.vendor_prices]
+# Artifacts whose source format the detector does NOT parse get freshness checks only, so types
+# whose primary checks are content checks are 'uncovered' there. DETECTION V2: the detector now
+# parses jsonl (IoT) and xlsx (manual stock counts) -- detection/readers.py CONTENT_FORMATS --
+# so the list is empty. (manual.vendor_prices has no manifest at all: still `null` above.)
+freshness_only_artifacts: []
 
 # Incidents whose check family is environmental (about the live warehouse, not the scenario
 # data). They are listed in results but excluded from precision.
@@ -67,18 +67,26 @@ types:
     checks: ["schema.column_order*"]
 
   # ---------------- DATA QUALITY ----------------
+  # DETECTION V2: written from the design of the new checks (detection/README.md), before any
+  # v2 scenario result was scored. Collateral = what the failure legitimately causes elsewhere.
   dq_null_spike:
     checks: ["nulls.spike:*"]
+    # Added after the first v2 scoring, with its reason: nulling an IoT `timestamp` makes those
+    # readings unplaceable in time, so the per-device cadence shows holes -- a true consequence.
+    collateral: ["iot.cadence_gap"]
   dq_duplicate_rows:
-    blind: true        # no uniqueness/duplicate check family; row-count band is far too wide for 6%
+    checks: ["duplicates.*"]             # repeated manifest-declared keys within a day's data
+    # Added after the first v2 scoring, with its reason: a re-delivered row is appended after the
+    # file's last record, so it is also out of chronological order.
+    collateral: ["volume.row_count", "ordering.non_monotonic:*"]
   dq_negative_quantity:
-    blind: true        # no value-range / sign check
+    checks: ["value_range.out_of_bounds:*"]   # manifest range min 0 / learned envelope
   dq_out_of_range:
-    blind: true        # no value-range check
+    checks: ["value_range.out_of_bounds:*"]
   dq_referential_break:
-    blind: true        # no cross-source key check
+    checks: ["referential.*"]            # child key (3pl.sales_order_id, customer_id, ...) not in parent
   dq_unit_change:
-    blind: true        # distribution shift in values; no value-distribution check
+    checks: ["value_range.out_of_bounds:*"]   # C->F / PKR->USD shifts every value out of the envelope
 
   # ---------------- TIMING / DELIVERY ----------------
   timing_late_file:
@@ -87,31 +95,38 @@ types:
     checks: ["freshness.missing_file", "freshness.empty_file", "freshness.truncated_file",
              "freshness.unreadable_file"]
   timing_stale_data:
-    blind: true        # yesterday's content under today's name: schema/volume identical, mtime fresh
+    checks: ["stale.identical_to_previous"]   # records identical to the previous period's file
+    # A re-sent payload is, by construction, also: events present twice (duplicate keys), events
+    # outside the page's window, orders missing from the parent CRM file (orphans), a wrong row count.
+    collateral: ["duplicates.*", "ordering.out_of_window:*", "referential.*", "volume.row_count"]
   timing_out_of_order:
-    blind: true        # row ordering is not inspected
+    checks: ["ordering.non_monotonic:*", "ordering.out_of_window:*"]
 
   # ---------------- IOT ----------------
   iot_sensor_dropout:
-    checks: ["volume.row_count"]     # a gap removes rows; visible only if the day leaves the learned band
+    checks: ["iot.cadence_gap", "volume.row_count"]   # per-device silence; fewer rows
   iot_flatline:
-    blind: true        # constant values; no variance check
+    checks: ["iot.flatline"]             # zero-variance run of one device's readings
   iot_battery_death:
-    blind: true        # decaying values; no drift check
+    # battery decays below the learned envelope; <12% the logger drops temp/humidity (nulls); then silence
+    checks: ["value_range.out_of_bounds:battery_level", "nulls.spike:temperature_c",
+             "nulls.spike:humidity_pct", "iot.cadence_gap"]
+    collateral: ["value_range.out_of_bounds:*", "nulls.spike:*", "volume.row_count"]
   iot_corrupt_json_line:
-    checks: ["freshness.truncated_file", "freshness.unreadable_file", "volume.row_count"]
+    checks: ["schema.corrupt_line", "freshness.truncated_file", "freshness.unreadable_file",
+             "volume.row_count"]
 
   # ---------------- EXCEL / HUMAN ----------------
   excel_date_formats:
-    blind: true        # manifest only types date columns as string; no format rule for this sheet
+    checks: ["schema.type_change:*"]     # date columns parsed against the declared date dtype
   excel_trailing_spaces:
-    blind: true        # whitespace is not inspected
+    blind: true        # whitespace is not inspected (not part of detection v2)
   excel_typo_product_codes:
-    blind: true        # no reference-data check
+    blind: true        # hand-keyed near-miss codes need a reference-code/edit-distance check (not in v2)
   excel_renamed_sheet:
-    checks: ["freshness.*", "schema.missing_column:*", "volume.row_count"]
+    checks: ["schema.sheet_renamed", "freshness.*", "schema.missing_column:*", "volume.row_count"]
   excel_merged_header:
-    checks: ["schema.*", "freshness.*", "volume.row_count"]
+    checks: ["schema.header_row_shift", "schema.*", "freshness.*", "volume.row_count"]
 
   # ---------------- DOMAIN EVENTS (not data errors; must NOT be flagged) ----------------
   domain_temp_excursion:

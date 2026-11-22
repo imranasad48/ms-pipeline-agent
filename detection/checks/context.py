@@ -15,3 +15,4 @@ class Context:
     config: dict
     now: dt.datetime = field(default_factory=lambda: dt.datetime.now(dt.timezone.utc))
     stats: Stats = field(default_factory=Stats)
+    cache: dict = field(default_factory=dict)   # profiles / key sets reused across days

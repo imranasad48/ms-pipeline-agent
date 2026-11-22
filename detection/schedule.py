@@ -18,6 +18,8 @@ class ExpectedFile:
     rel: str                         # path relative to data root, used in incidents
     table: str | None                # sqlite table, if the pattern has '#table'
     available_at: dt.datetime | None  # naive local time, like file mtimes
+    start: dt.datetime | None = None   # first instant the file covers (naive local)
+    end: dt.datetime | None = None     # first instant it no longer covers
 
 
 def split_pattern(spec: SourceSpec) -> tuple[str, str | None]:
@@ -39,11 +41,15 @@ def expected_files(spec: SourceSpec, business_date: dt.date, data_root: Path,
     midnight = dt.datetime.combine(business_date, dt.time.min)
     offset = dt.timedelta(hours=float(cad.get("available_after_hours", 0)))
 
+    span = {"hourly": dt.timedelta(hours=1), "daily": dt.timedelta(days=1),
+            "weekly": dt.timedelta(days=7)}.get(kind)
+
     def make(token: str | None, slot_start: dt.datetime | None):
         rel = pattern if token is None else pattern.replace("*", token)
         avail = None if slot_start is None else slot_start + offset
+        end = None if slot_start is None or span is None else slot_start + span
         return ExpectedFile(Path(data_root) / rel, rel + (f"#{table}" if table else ""),
-                            table, avail)
+                            table, avail, slot_start, end)
 
     if "*" not in pattern or kind == "static":
         return [make(None, None)]
@@ -71,3 +77,26 @@ def infer_date_range(data_root: Path) -> tuple[dt.date, dt.date]:
     if not dates:
         raise SystemExit(f"no dated files under {data_root}")
     return min(dates), max(dates)
+
+
+def source_dir(spec: SourceSpec) -> str:
+    """First directory of the path pattern ('crm', '3pl', ...): how manifests name sources."""
+    return split_pattern(spec)[0].split("/", 1)[0]
+
+
+def preceding_files(spec: SourceSpec, business_date: dt.date, data_root: Path,
+                    cfg: dict) -> list:
+    """For each file expected on ``business_date``: (file, the file one period before it).
+
+    Hourly -> the previous hour (hour 0 looks at yesterday's hour 23); daily -> yesterday;
+    weekly -> last week. Static sources have no previous period.
+    """
+    today = expected_files(spec, business_date, data_root, cfg)
+    cad = cfg["cadence"].get(source_dir(spec), {"kind": "daily"})
+    if cad["kind"] == "static" or not today:
+        return []
+    step = dt.timedelta(days=7 if cad["kind"] == "weekly" else 1)
+    before = expected_files(spec, business_date - step, data_root, cfg)
+    combined = before + today
+    return [(f, combined[len(before) + i - 1]) for i, f in enumerate(today)
+            if len(before) + i - 1 >= 0]
