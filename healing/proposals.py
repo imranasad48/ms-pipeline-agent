@@ -9,6 +9,8 @@ from pathlib import Path
 
 import yaml
 
+from detection.incidents import mark_resolved_pending_verification
+
 from .case import sha256
 from .settings import Settings
 from .verdict import READY, table_rows
@@ -135,6 +137,9 @@ def apply_proposal(settings: Settings, proposal_id: str, force_drift: bool = Fal
     for r in changed:
         shutil.copy2(root / "staging" / r, settings.repo_root / r)
     update_index(settings, proposal_id, status=APPLIED, applied_files=changed)
+    incident_id = _read_index(settings).get(proposal_id, {}).get("incident_id")
+    if incident_id:      # the one sanctioned healing -> detection write (see its docstring)
+        mark_resolved_pending_verification(settings.incidents_db, incident_id)
     return changed
 
 

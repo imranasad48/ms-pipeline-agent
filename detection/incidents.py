@@ -113,3 +113,28 @@ class IncidentStore:
 
     def close(self) -> None:
         self.con.close()
+
+
+PENDING_VERIFICATION = "resolved_pending_verification"
+
+
+def mark_resolved_pending_verification(db_path: Path, incident_id: str) -> bool:
+    """Set one incident's status to ``resolved_pending_verification``.
+
+    THE ONE SANCTIONED WRITE FROM HEALING INTO DETECTION'S DATABASE. ``healing apply`` calls
+    this (and nothing else) after a human-approved patch lands, so the incident stops showing
+    as open. It only ever touches the ``status`` column of an *open* row -- the evidence
+    (expected/observed/files) is never altered, and a later detection run does not overwrite the
+    status (``IncidentStore.save`` keeps it on conflict). Returns True if a row changed.
+    """
+    path = Path(db_path)
+    if not path.exists():
+        return False
+    con = sqlite3.connect(path)
+    try:
+        cur = con.execute("UPDATE incidents SET status=? WHERE incident_id=? AND status='open'",
+                          (PENDING_VERIFICATION, incident_id))
+        con.commit()
+        return cur.rowcount > 0
+    finally:
+        con.close()

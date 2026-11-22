@@ -29,11 +29,13 @@ _date = dt.date.fromisoformat
 
 def _common(p: argparse.ArgumentParser, data_root: bool = True) -> None:
     if data_root:
-        p.add_argument("--data-root", required=True, type=Path)
+        p.add_argument("--data-root", type=Path, default=C.DEFAULT_DATA_ROOT,
+                       required=C.DEFAULT_DATA_ROOT is None,
+                       help="data root (default: $DETECTION_DATA_ROOT)")
     p.add_argument("--manifests", type=Path, default=C.DEFAULT_MANIFESTS)
     p.add_argument("--config", type=Path, default=None)
     p.add_argument("--warehouse", type=Path,
-                   default=Path(os.environ.get("WAREHOUSE_DB", C.DEFAULT_WAREHOUSE)))
+                   default=C.DEFAULT_WAREHOUSE)
     p.add_argument("--db", "--incidents-db", dest="db", type=Path, default=C.DEFAULT_INCIDENTS_DB,
                    help="incidents database (default detection/incidents.db)")
 

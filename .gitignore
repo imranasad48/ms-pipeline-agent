@@ -6,3 +6,4 @@ warehouse/*.db
 detection/incidents.db
 healing/proposals/*/work/
 healing/proposals/_archive/*/work/
+dashboard/site/

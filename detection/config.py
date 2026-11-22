@@ -1,17 +1,27 @@
 """Load detection thresholds (config.yaml) and learned baselines (baselines.yaml)."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import yaml
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = PACKAGE_DIR.parent
-DEFAULT_CONFIG = PACKAGE_DIR / "config.yaml"
-DEFAULT_BASELINES = PACKAGE_DIR / "baselines.yaml"
-DEFAULT_MANIFESTS = REPO_ROOT / "manifests"
-DEFAULT_WAREHOUSE = REPO_ROOT / "warehouse" / "warehouse.db"
-DEFAULT_INCIDENTS_DB = PACKAGE_DIR / "incidents.db"
+
+
+def _env_path(var: str, default: Path) -> Path:
+    """Path from an environment variable, else the repo-relative default. This is what lets
+    the same code run on the host (defaults) and inside the Airflow containers (env/mounts)."""
+    return Path(os.environ[var]) if os.environ.get(var) else default
+
+
+DEFAULT_CONFIG = _env_path("DETECTION_CONFIG", PACKAGE_DIR / "config.yaml")
+DEFAULT_BASELINES = _env_path("DETECTION_BASELINES", PACKAGE_DIR / "baselines.yaml")
+DEFAULT_MANIFESTS = _env_path("DETECTION_MANIFESTS", REPO_ROOT / "manifests")
+DEFAULT_WAREHOUSE = _env_path("WAREHOUSE_DB", REPO_ROOT / "warehouse" / "warehouse.db")
+DEFAULT_INCIDENTS_DB = _env_path("DETECTION_DB", PACKAGE_DIR / "incidents.db")
+DEFAULT_DATA_ROOT = os.environ.get("DETECTION_DATA_ROOT")   # None -> --data-root is required
 
 
 def load_config(path: Path | None = None, baselines: Path | None = None) -> dict:
