@@ -1,0 +1,15 @@
+{
+ "incident_id": "inc_420b5fbb4c3a5b7f",
+ "detected_at": "2026-11-22T13:29:50+00:00",
+ "business_date": "2026-10-07",
+ "pipeline_id": "delivery_performance",
+ "source_id": "tpl_shipment_events_json",
+ "check_id": "schema.renamed:driver_id->driverID",
+ "check_family": "schema",
+ "severity": "warn",
+ "expected_json": "{\"column_contract\": {\"column\": \"driver_id\"}}",
+ "observed_json": "{\"files_affected\": 1, \"per_file\": {\"3pl/shipment_events_2026-10-07T11.json\": {\"column\": \"driverID\"}}}",
+ "affected_files_json": "[\"3pl/shipment_events_2026-10-07T11.json\"]",
+ "status": "open",
+ "same_day": []
+}

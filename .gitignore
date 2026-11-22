@@ -7,3 +7,5 @@ detection/incidents.db
 healing/proposals/*/work/
 healing/proposals/_archive/*/work/
 dashboard/site/
+demo_data/
+demo_data/

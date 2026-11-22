@@ -30,5 +30,17 @@
   "pipeline_id": "delivery_performance",
   "status": "APPLIED",
   "updated_at": "2026-11-19T19:51:42"
+ },
+ "p-420b5fbb-20261122183052": {
+  "applied_files": [
+   "dags/delivery_performance/pipeline.py"
+  ],
+  "check_id": "schema.renamed:driver_id->driverID",
+  "created_at": "2026-11-22T18:30:52",
+  "decision": "FIX",
+  "incident_id": "inc_420b5fbb4c3a5b7f",
+  "pipeline_id": "delivery_performance",
+  "status": "APPLIED",
+  "updated_at": "2026-11-22T18:32:19"
  }
 }
