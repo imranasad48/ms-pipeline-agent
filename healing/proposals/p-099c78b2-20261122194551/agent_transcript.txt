@@ -1,0 +1,21 @@
+  [tool] Bash: {'command': 'cat case/incident.json case/baseline.json case/scope.json; ls case/raw_files case/data_root; cat 
+  [tool] Bash: {'command': 'cd case/data_root/crm; f=sales_orders_2026-11-02.csv; head -1 $f; grep -n -E "SO-20261102-005[12]
+  [tool] Bash: {'command': 'cd /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-099c
+  [tool] Bash: {'command': 'python3 -c "\nimport json;d=json.load(open(\'agent_out/selftest.json\'));print(json.dumps(d.get(\
+  [tool] Bash: {'command': 'cat > agent_out/diagnosis.md <<\'E\'\n# inc_099c78b2cee6d9ab – duplicate (order_id, line_no) in c
+Incident inc_099c78b2cee6d9ab is a data-plumbing defect, and I patched the staged `extract_orders` to absorb it. After the patch the self-test still fails `validate`, on three checks that this incident doesn't cause.
+
+**Cause:** `crm/sales_orders_2026-11-02.csv` repeats four rows word for word. Lines 132–135 copy lines 128–131 (lines 1 and 2 of orders SO-20261102-0051 and -0052). Nothing differs between the copies, so no information is lost by dropping them.
+
+**Patch:** in `dags/delivery_performance/pipeline.py`, `extract_orders` now drops fully identical rows within each file, keeping the first. Rows that share a key but differ in content are kept, so a real conflict would still show up. I changed no validation checks and left the manifest alone.
+
+**Self-test (one attempt):** `line_count_reconciles` failed in the baseline and now passes. The three that still fail are:
+- `event_orders_exist_in_crm`
+- `all_events_accounted`
+- `shipment_fields_complete`
+
+They come from the quarantined 3PL hour-11 file, which belongs to the separate `originWarehouseId` incident.
+
+I wrote `agent_out/diagnosis.md` and `agent_out/decision.json`.
+
+DECISION: FIX

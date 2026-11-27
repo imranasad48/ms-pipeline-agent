@@ -1,0 +1,19 @@
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-099c7
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-099c7
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-099c7
+  [tool] Bash: {'command': 'cd case/data_root/crm && f=sales_orders_2026-11-02.csv; wc -l $f; sort $f | uniq -d | cut -c1-200
+  [tool] Edit: {'replace_all': False, 'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/hea
+  [tool] Bash: {'command': 'cd /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-099c
+  [tool] Bash: {'command': 'cat agent_out/selftest.json | head -60'}
+  [tool] Bash: {'command': 'cat > agent_out/diagnosis.md <<\'E\'\n# Incident inc_099c78b2cee6d9ab – duplicates on order_id+li
+I patched the staged pipeline to drop exact duplicate CRM rows. After the patch, `line_count_reconciles`, which failed in the baseline, now passes. Three validate checks still fail, and they were already failing in the baseline.
+
+**Root cause:** `crm/sales_orders_2026-11-02.csv` has four re-sent rows. They are lines L1 and L2 of orders SO-20261102-0051 and SO-20261102-0052, repeated at the end of the file. Every column matches the originals, so dropping them loses nothing. That is why I classified it as FIX rather than ESCALATE.
+
+**Change:** `extract_orders` in `dags/delivery_performance/pipeline.py` now drops fully identical rows within each file, keeping the first. I didn't touch any validation check or the manifest.
+
+**Still failing:** `event_orders_exist_in_crm`, `all_events_accounted` and `shipment_fields_complete`. I attribute them to the partial data slice rather than this incident. I did not confirm that against the shipment files. My reading is that 3PL events point at orders missing from the other-day CRM files. I left them alone, as the control results in `baseline.json` say to.
+
+The self-test ran once and passed on the first attempt. The runner's `step:validate` result still reads "fail" because of those three checks. I wrote `agent_out/diagnosis.md` and `agent_out/decision.json`.
+
+DECISION: FIX

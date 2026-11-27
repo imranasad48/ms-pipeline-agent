@@ -1,0 +1,32 @@
+{
+ "business_date": "2026-10-27",
+ "files_copied": 25,
+ "copied": [
+  "3pl/shipment_events_2026-10-27T00.json",
+  "3pl/shipment_events_2026-10-27T01.json",
+  "3pl/shipment_events_2026-10-27T02.json",
+  "3pl/shipment_events_2026-10-27T03.json",
+  "3pl/shipment_events_2026-10-27T04.json",
+  "3pl/shipment_events_2026-10-27T05.json",
+  "3pl/shipment_events_2026-10-27T06.json",
+  "3pl/shipment_events_2026-10-27T07.json",
+  "3pl/shipment_events_2026-10-27T08.json",
+  "3pl/shipment_events_2026-10-27T09.json",
+  "3pl/shipment_events_2026-10-27T10.json",
+  "3pl/shipment_events_2026-10-27T11.json",
+  "3pl/shipment_events_2026-10-27T12.json",
+  "3pl/shipment_events_2026-10-27T13.json",
+  "3pl/shipment_events_2026-10-27T14.json",
+  "3pl/shipment_events_2026-10-27T15.json",
+  "3pl/shipment_events_2026-10-27T16.json",
+  "3pl/shipment_events_2026-10-27T17.json",
+  "3pl/shipment_events_2026-10-27T18.json",
+  "3pl/shipment_events_2026-10-27T19.json",
+  "3pl/shipment_events_2026-10-27T20.json",
+  "3pl/shipment_events_2026-10-27T21.json",
+  "3pl/shipment_events_2026-10-27T22.json",
+  "3pl/shipment_events_2026-10-27T23.json",
+  "crm/sales_orders_2026-10-27.csv"
+ ],
+ "quarantined": []
+}

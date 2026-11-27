@@ -1,0 +1,44 @@
+{
+ "incident_id": "inc_099c78b2cee6d9ab",
+ "detected_at": "2026-11-22T14:45:50+00:00",
+ "business_date": "2026-11-02",
+ "pipeline_id": "delivery_performance",
+ "source_id": "crm_sales_orders_csv",
+ "check_id": "duplicates.key:order_id+line_no",
+ "check_family": "duplicates",
+ "severity": "critical",
+ "expected_json": "{\"max_duplicate_keys\": 0}",
+ "observed_json": "{\"files_affected\": 1, \"per_file\": {\"crm/sales_orders_2026-11-02.csv\": {\"duplicate_keys\": 4, \"examples\": [\"('SO-20261102-0051', '1')\", \"('SO-20261102-0051', '2')\", \"('SO-20261102-0052', '1')\"], \"extra_copies\": 4}}}",
+ "affected_files_json": "[\"crm/sales_orders_2026-11-02.csv\"]",
+ "status": "open",
+ "same_day": [
+  {
+   "incident_id": "inc_6266f96feba1688b",
+   "detected_at": "2026-11-22T14:44:14+00:00",
+   "business_date": "2026-11-02",
+   "pipeline_id": "delivery_performance",
+   "source_id": "tpl_shipment_events_json",
+   "check_id": "schema.renamed:origin_warehouse_id->originWarehouseId",
+   "check_family": "schema",
+   "severity": "warn",
+   "expected_json": "{\"column_contract\": {\"column\": \"origin_warehouse_id\"}}",
+   "observed_json": "{\"files_affected\": 1, \"per_file\": {\"3pl/shipment_events_2026-11-02T11.json\": {\"column\": \"originWarehouseId\"}}}",
+   "affected_files_json": "[\"3pl/shipment_events_2026-11-02T11.json\"]",
+   "status": "resolved_pending_verification"
+  },
+  {
+   "incident_id": "inc_b5d7d93f59429715",
+   "detected_at": "2026-11-22T14:45:50+00:00",
+   "business_date": "2026-11-02",
+   "pipeline_id": "delivery_performance",
+   "source_id": "crm_sales_orders_csv",
+   "check_id": "duplicates.key:order_line_id",
+   "check_family": "duplicates",
+   "severity": "critical",
+   "expected_json": "{\"max_duplicate_keys\": 0}",
+   "observed_json": "{\"files_affected\": 1, \"per_file\": {\"crm/sales_orders_2026-11-02.csv\": {\"duplicate_keys\": 4, \"examples\": [\"('SO-20261102-0051-L1',)\", \"('SO-20261102-0051-L2',)\", \"('SO-20261102-0052-L1',)\"], \"extra_copies\": 4}}}",
+   "affected_files_json": "[\"crm/sales_orders_2026-11-02.csv\"]",
+   "status": "open"
+  }
+ ]
+}

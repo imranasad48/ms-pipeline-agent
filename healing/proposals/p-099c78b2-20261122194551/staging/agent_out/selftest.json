@@ -1,0 +1,30 @@
+{
+ "errors": {
+  "step:validate": "AssertionError: Validation failed: ['event_orders_exist_in_crm', 'all_events_accounted', 'shipment_fields_complete']  (at pipeline.py:348)"
+ },
+ "results": {
+  "step:extract_orders": "pass",
+  "step:extract_shipments": "pass",
+  "step:load": "pass",
+  "step:transform": "pass",
+  "step:validate": "fail",
+  "validate:accepted_values_is_late": "pass",
+  "validate:accepted_values_latest_status": "pass",
+  "validate:all_events_accounted": "fail",
+  "validate:customer_id_consistent_across_sources": "pass",
+  "validate:delivered_at_iff_delivered": "pass",
+  "validate:event_id_unique_in_source": "pass",
+  "validate:event_orders_exist_in_crm": "fail",
+  "validate:is_late_consistent": "pass",
+  "validate:line_count_reconciles": "pass",
+  "validate:no_shipment_means_no_events": "pass",
+  "validate:not_null_required": "pass",
+  "validate:order_total_reconciles": "pass",
+  "validate:pickup_before_delivery": "pass",
+  "validate:pk_unique_order_id": "pass",
+  "validate:promised_date_matches_requested": "pass",
+  "validate:row_count_equals_crm_orders": "pass",
+  "validate:schema_columns_present": "pass",
+  "validate:shipment_fields_complete": "fail"
+ }
+}

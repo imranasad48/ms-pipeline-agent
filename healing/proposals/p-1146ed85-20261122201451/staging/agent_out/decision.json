@@ -1,0 +1,1 @@
+{"decision":"FIX","root_cause":"3PL events file renamed key event_id to eventId (schema drift); added alias mapping.","attempts":1,"files_changed":["dags/delivery_performance/pipeline.py"]}

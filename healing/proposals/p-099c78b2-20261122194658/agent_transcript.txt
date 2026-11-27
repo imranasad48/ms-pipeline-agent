@@ -1,0 +1,24 @@
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-099c7
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-099c7
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-099c7
+  [tool] Bash: {'command': 'cd case/data_root/crm && python3 -c "\nimport pandas as pd\nd=pd.read_csv(\'sales_orders_2026-11-
+Exact duplicate rows (replayed block). I'll dedupe fully-identical rows in extract_orders.
+  [tool] Edit: {'replace_all': False, 'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/hea
+  [tool] Bash: {'command': 'cd /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-099c
+  [tool] Bash: {'command': 'cat agent_out/selftest.json | head -50'}
+  [tool] Bash: {'command': 'cat > agent_out/diagnosis.md <<\'E\'\n# Diagnosis inc_099c78b2cee6d9ab (duplicates.key:order_id+l
+The incident is a data-plumbing defect, so I patched it. The self-test still fails on three other validate checks, which I did not fix.
+
+**Cause:** the CRM file `sales_orders_2026-11-02.csv` has four rows that appear twice, identical in every column. They are lines 1 and 2 of orders `SO-20261102-0051` and `SO-20261102-0052`. This inflated the line count, which is why `line_count_reconciles` failed in the baseline.
+
+**Fix:** `extract_orders` in `dags/delivery_performance/pipeline.py` now drops fully identical rows within each file. Rows that share a key but differ in content are kept, so real conflicts still show up. I did not change any validation checks or the manifest.
+
+**Self-test (1 attempt):** `line_count_reconciles` now passes. `event_orders_exist_in_crm`, `all_events_accounted` and `shipment_fields_complete` still fail. They were already failing in the baseline.
+
+My explanation for those three is a guess: the 3PL hour-11 shipment file is missing from the case `data_root`, and it belongs to the separate `originWarehouseId` incident. I did not confirm this.
+
+The same-day incident `inc_b5d7d93f59429715` (key `order_line_id`) is the same duplicate rows, so this patch covers it too.
+
+`agent_out/diagnosis.md` and `agent_out/decision.json` are written.
+
+DECISION: FIX

@@ -1,0 +1,1 @@
+{"decision":"FIX","root_cause":"CRM sales_orders_2026-11-02.csv has 4 exact duplicate re-sent line rows that inflated line counts.","attempts":1,"files_changed":["dags/delivery_performance/pipeline.py"]}

@@ -1,0 +1,15 @@
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-729ce
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-729ce
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-729ce
+  [tool] Bash: {'command': 'cd case/raw_files/3pl && python3 -c "\nimport json,glob\nfor f in glob.glob(\'*.json\'):\n    d=j
+Only the rename differs. Patch the alias map.
+  [tool] Edit: {'replace_all': False, 'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/hea
+  [tool] Bash: {'command': 'cd /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-729c
+  [tool] Bash: {'command': 'cat > agent_out/diagnosis.md <<\'E\'\n# inc_729ce9ab3496e060 – delivery_performance, 2026-11-06\n
+The 3PL file `shipment_events_2026-11-06T11.json` renamed `sales_order_id` to `salesOrderId` on all 15 events, which broke the field check in `extract_shipments`. I added `"salesOrderId": "sales_order_id"` to `EVENT_KEY_ALIASES` in `dags/delivery_performance/pipeline.py`, so the old and new key names are both accepted. The manifest is unchanged and no validation check was weakened.
+
+The self-test passed on the first attempt for all steps and for `validate:shipment_fields_complete`. `validate:all_events_accounted` and `validate:event_orders_exist_in_crm` still fail, which keeps `step:validate` failing. Both fail in the baseline control as well, so they come from the partial data slice and not from this incident or the patch.
+
+I wrote `agent_out/diagnosis.md` and `agent_out/decision.json`.
+
+DECISION: FIX

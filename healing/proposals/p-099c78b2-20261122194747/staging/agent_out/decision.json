@@ -1,0 +1,1 @@
+{"decision":"FIX","root_cause":"CRM sales_orders file contains exact duplicated rows (replayed lines for two orders), breaking uniqueness of order_id+line_no.","attempts":1,"files_changed":["dags/delivery_performance/pipeline.py"]}

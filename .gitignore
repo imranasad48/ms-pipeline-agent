@@ -10,3 +10,5 @@ dashboard/site/
 demo_data/
 demo_data/
 orchestrator/status.json
+demo_root/
+demo_data_old/

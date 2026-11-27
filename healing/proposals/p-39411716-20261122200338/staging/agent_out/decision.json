@@ -1,0 +1,1 @@
+{"decision": "FIX", "root_cause": "3PL file shipment_events_2026-11-09T11.json used camelCase key originWarehouseId instead of origin_warehouse_id; the pipeline's existing EVENT_KEY_ALIASES already absorbs it, so no patch was required.", "attempts": 1, "files_changed": []}

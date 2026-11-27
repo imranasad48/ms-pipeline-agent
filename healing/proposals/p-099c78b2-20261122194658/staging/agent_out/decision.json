@@ -1,0 +1,1 @@
+{"decision":"FIX","root_cause":"CRM sales_orders file contains 4 byte-identical replayed rows (orders 0051/0052), inflating line counts.","attempts":1,"files_changed":["dags/delivery_performance/pipeline.py"]}

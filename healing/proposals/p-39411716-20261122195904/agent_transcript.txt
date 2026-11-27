@@ -1,0 +1,18 @@
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-39411
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-39411
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-39411
+The staged pipeline already maps `originWarehouseId`. I'll run the self-test to see what actually fails.
+  [tool] Bash: {'command': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/.venv/bin/python /Users/imranasad48/Deskto
+The run printed nothing. I'll check the selftest output.
+  [tool] Bash: {'command': 'cat agent_out/selftest.json | head -50; grep -c originWarehouseId case/raw_files/* 2>/dev/null | 
+  [tool] Bash: {'command': 'mkdir -p agent_out && cat > agent_out/diagnosis.md <<\'EOF\'\n# Diagnosis: inc_394117168708ab9e (
+I classified this as a fix, but I changed no files, because the staged `pipeline.py` already absorbs the rename.
+
+- **Root cause:** `3pl/shipment_events_2026-11-09T11.json` used `originWarehouseId` instead of `origin_warehouse_id`. This is key renaming only; the data's meaning is unchanged.
+- **Why no edit:** `EVENT_KEY_ALIASES` already maps `originWarehouseId` back to `origin_warehouse_id`, and `extract_shipments` applies it before the schema check.
+- **Self-test (one run):** All extract, transform and load steps pass. `shipment_fields_complete` fails in the control run and now passes.
+- **Remaining failures:** `event_orders_exist_in_crm` and `all_events_accounted` still fail. They fail identically in the control run, so they come from the partial data slice and not from this incident. I left them alone and weakened no validation checks.
+
+I wrote `agent_out/diagnosis.md` and `agent_out/decision.json`, with `files_changed` left empty. The manifest is unchanged.
+
+DECISION: FIX

@@ -21,7 +21,7 @@ from healing.settings import Settings
 PACKAGE_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG = PACKAGE_DIR / "config.yaml"
 STATUS_PATH = PACKAGE_DIR / "status.json"      # read by the dashboard banner
-ALL_PROPOSAL_STATUSES = ("READY_FOR_APPROVAL", "ESCALATED", "APPLIED", "FAILED", "REJECTED")
+ALL_PROPOSAL_STATUSES = ("READY_FOR_APPROVAL", "ESCALATED", "APPLIED", "FAILED", "FAILED_VALIDATION", "REJECTED")
 DEFAULT_PREFIXES = ("schema.", "value_range.", "duplicates.", "volume.", "nulls.")
 
 

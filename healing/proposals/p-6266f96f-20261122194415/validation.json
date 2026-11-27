@@ -1,0 +1,209 @@
+{
+ "verdict": "READY_FOR_APPROVAL",
+ "target_keys": [
+  "step:extract_shipments"
+ ],
+ "target_resolved": true,
+ "unresolved_targets": [],
+ "regressions": [],
+ "unmasked_failures": [],
+ "scope_artifacts": [
+  "step:validate",
+  "validate:all_events_accounted",
+  "validate:event_orders_exist_in_crm"
+ ],
+ "rows": [
+  [
+   "detect:tpl_shipment_events_json:schema.renamed:origin_warehouse_id->originWarehouseId",
+   "fail",
+   "fail",
+   "source file still dirty (expected: code-only fix)"
+  ],
+  [
+   "policy:manifest_versioned",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "step:extract_orders",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "step:extract_shipments",
+   "fail",
+   "pass",
+   "TARGET"
+  ],
+  [
+   "step:load",
+   "skipped",
+   "pass",
+   ""
+  ],
+  [
+   "step:transform",
+   "skipped",
+   "pass",
+   ""
+  ],
+  [
+   "step:validate",
+   "skipped",
+   "fail",
+   "scope artifact (also fails without the incident's files)"
+  ],
+  [
+   "validate:accepted_values_is_late",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:accepted_values_latest_status",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:all_events_accounted",
+   "-",
+   "fail",
+   "scope artifact (also fails without the incident's files)"
+  ],
+  [
+   "validate:customer_id_consistent_across_sources",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:delivered_at_iff_delivered",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:event_id_unique_in_source",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:event_orders_exist_in_crm",
+   "-",
+   "fail",
+   "scope artifact (also fails without the incident's files)"
+  ],
+  [
+   "validate:is_late_consistent",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:line_count_reconciles",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:no_shipment_means_no_events",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:not_null_required",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:order_total_reconciles",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:pickup_before_delivery",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:pk_unique_order_id",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:promised_date_matches_requested",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:row_count_equals_crm_orders",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:schema_columns_present",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:shipment_fields_complete",
+   "-",
+   "pass",
+   ""
+  ]
+ ],
+ "before": {
+  "step:extract_orders": "pass",
+  "step:extract_shipments": "fail",
+  "step:load": "skipped",
+  "step:transform": "skipped",
+  "step:validate": "skipped",
+  "detect:tpl_shipment_events_json:schema.renamed:origin_warehouse_id->originWarehouseId": "fail",
+  "policy:manifest_versioned": "pass"
+ },
+ "after": {
+  "step:extract_orders": "pass",
+  "step:extract_shipments": "pass",
+  "step:load": "pass",
+  "step:transform": "pass",
+  "step:validate": "fail",
+  "validate:accepted_values_is_late": "pass",
+  "validate:accepted_values_latest_status": "pass",
+  "validate:all_events_accounted": "fail",
+  "validate:customer_id_consistent_across_sources": "pass",
+  "validate:delivered_at_iff_delivered": "pass",
+  "validate:event_id_unique_in_source": "pass",
+  "validate:event_orders_exist_in_crm": "fail",
+  "validate:is_late_consistent": "pass",
+  "validate:line_count_reconciles": "pass",
+  "validate:no_shipment_means_no_events": "pass",
+  "validate:not_null_required": "pass",
+  "validate:order_total_reconciles": "pass",
+  "validate:pickup_before_delivery": "pass",
+  "validate:pk_unique_order_id": "pass",
+  "validate:promised_date_matches_requested": "pass",
+  "validate:row_count_equals_crm_orders": "pass",
+  "validate:schema_columns_present": "pass",
+  "validate:shipment_fields_complete": "pass",
+  "detect:tpl_shipment_events_json:schema.renamed:origin_warehouse_id->originWarehouseId": "fail",
+  "policy:manifest_versioned": "pass"
+ },
+ "errors_after": {
+  "step:validate": "AssertionError: Validation failed: ['event_orders_exist_in_crm', 'all_events_accounted']  (at pipeline.py:345)"
+ },
+ "errors_before": {
+  "step:extract_shipments": "ValueError: shipment_events_2026-11-02T11.json event EVT-TRK202611020048-2 missing fields: ['origin_warehouse_id']  (at pipeline.py:170)"
+ }
+}

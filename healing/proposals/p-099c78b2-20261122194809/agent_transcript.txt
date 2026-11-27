@@ -1,0 +1,21 @@
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-099c7
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-099c7
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-099c7
+  [tool] Bash: {'command': "cd case/raw_files; ls -R . | head; f=$(find . -name 'sales_orders_2026-11-02.csv'); head -1 $f; g
+  [tool] Bash: {'command': 'cd /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-099c
+  [tool] Bash: {'command': 'cat agent_out/selftest.json | head -60'}
+  [tool] Bash: {'command': 'cat case/scope.json | head -30; ls case/data_root/*'}
+  [tool] Bash: {'command': 'cat > agent_out/diagnosis.md <<\'E\'\n# Incident inc_099c78b2cee6d9ab – duplicates on order_id+li
+I patched the staged `extract_orders` to drop exact duplicate rows, and the self-test went from four failing validate checks to three. Those three are `event_orders_exist_in_crm`, `all_events_accounted` and `shipment_fields_complete`. They also failed in the baseline, so I left them alone.
+
+**Cause:** `crm/sales_orders_2026-11-02.csv` repeats four lines verbatim at the end of the file. These are lines 1 and 2 of order 0051 and lines 1 and 2 of order 0052, and every column is identical. That is a replayed-lines defect, not new business data. The same duplication raised the second open incident, `inc_b5d7d93f59429715`, on `order_line_id`.
+
+**Fix:** `extract_orders` in `dags/delivery_performance/pipeline.py` now drops fully identical rows within each CRM file before it counts rows. Rows that share a key but differ in content are kept, so the existing consistency checks still catch them. I changed no validation check and did not edit the manifest.
+
+**Self-test:** one attempt. `line_count_reconciles` now passes.
+
+I don't have confirmation that the three remaining failures come from the partial data slice, but they fail identically in the baseline and look unrelated to this incident. I haven't verified the cause beyond a quick look at `scope.json`, which shows the T11 events file is excluded from the case data.
+
+`agent_out/diagnosis.md` and `agent_out/decision.json` are written.
+
+DECISION: FIX

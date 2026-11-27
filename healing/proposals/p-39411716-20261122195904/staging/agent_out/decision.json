@@ -1,0 +1,1 @@
+{"decision": "FIX", "root_cause": "3PL file renamed origin_warehouse_id to originWarehouseId; the staged pipeline's EVENT_KEY_ALIASES already maps it back to the canonical name, so no further edit was needed.", "attempts": 1, "files_changed": []}

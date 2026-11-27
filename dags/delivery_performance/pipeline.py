@@ -48,7 +48,9 @@ EVENT_SCHEMA = {
     "notes": "string", "is_late": "int64",
 }
 EVENT_KEY_ALIASES = {"vehicleId": "vehicle_id", "driverID": "driver_id",
-                     "hubCode": "hub_code"}
+                     "hubCode": "hub_code", "trackingId": "tracking_id",
+                     "originWarehouseId": "origin_warehouse_id",
+                     "eventId": "event_id", "salesOrderId": "sales_order_id"}
 EVENT_STATUSES ={"picked_up", "in_transit", "delivered", "returned"}
 LOCAL_TZ = "+05:00"  # source feeds are Pakistan time; outputs normalised to it
 

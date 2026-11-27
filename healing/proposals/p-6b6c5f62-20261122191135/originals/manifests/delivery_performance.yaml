@@ -1,0 +1,208 @@
+manifest_version: 1
+pipeline_id: delivery_performance
+brief: "For each CRM sales order, combine the order data with the 3PL shipment tracking events to produce one row per order in the warehouse: latest shipment status, pickup and delivery timestamps, the promised delivery time, and a flag for whether the delivery was late. Name the table delivery_performance."
+created: "2026-11-13"
+sources:
+  - id: crm_sales_orders_csv
+    format: csv
+    path_pattern: "${DATA_ROOT}/crm/sales_orders_*.csv"
+    expected_schema:
+      order_line_id: string
+      order_id: string
+      order_date: string
+      order_datetime: string
+      customer_id: string
+      warehouse_id: string
+      line_no: int64
+      product_id: string
+      sku: string
+      quantity: int64
+      uom: string
+      unit_price: float64
+      discount_pct: float64
+      line_total: float64
+      currency: string
+      is_cold_chain: int64
+      requested_delivery_date: string
+      order_status: string
+      priority: string
+      sales_rep: string
+      channel: string
+      payment_terms_days: int64
+      has_cold_chain_items: int64
+    observed:
+      files: 90
+      total_rows: 10082
+      null_rates:
+        order_line_id: 0.0
+        order_id: 0.0
+        order_date: 0.0
+        order_datetime: 0.0
+        customer_id: 0.0
+        warehouse_id: 0.0
+        line_no: 0.0
+        product_id: 0.0
+        sku: 0.0
+        quantity: 0.0
+        uom: 0.0
+        unit_price: 0.0
+        discount_pct: 0.0
+        line_total: 0.0
+        currency: 0.0
+        is_cold_chain: 0.0
+        requested_delivery_date: 0.0
+        order_status: 0.0
+        priority: 0.0
+        sales_rep: 0.0
+        channel: 0.0
+        payment_terms_days: 0.0
+        has_cold_chain_items: 0.0
+  - id: tpl_shipment_events_json
+    format: json
+    path_pattern: "${DATA_ROOT}/3pl/shipment_events_*.json"
+    expected_schema:
+      event_id: string
+      tracking_id: string
+      sales_order_id: string
+      customer_id: string
+      status: string
+      event_timestamp: datetime
+      recorded_at: datetime
+      vehicle_id: string
+      driver_id: string
+      hub_code: string
+      origin_warehouse_id: string
+      destination_city: string
+      temperature_controlled: bool
+      service_level: string
+      promised_delivery_at: datetime
+      pieces: int64
+      weight_kg: float64
+      notes: string
+      is_late: int64
+    observed:
+      files: 2160
+      total_rows: 15848
+      null_rates:
+        event_id: 0.0
+        tracking_id: 0.0
+        sales_order_id: 0.0
+        customer_id: 0.0
+        status: 0.0
+        event_timestamp: 0.0
+        recorded_at: 0.0
+        vehicle_id: 0.0
+        driver_id: 0.0
+        hub_code: 0.0
+        origin_warehouse_id: 0.0
+        destination_city: 0.0
+        temperature_controlled: 0.0
+        service_level: 0.0
+        promised_delivery_at: 0.0
+        pieces: 0.0
+        weight_kg: 0.0
+        notes: 0.6134
+        is_late: 0.0
+steps:
+  - id: extract_orders
+    file: dags/delivery_performance/pipeline.py
+    function: extract_orders
+    description: "Read all crm/sales_orders_*.csv as raw strings, verify required columns, tag source_file, stage to pickle."
+  - id: extract_shipments
+    file: dags/delivery_performance/pipeline.py
+    function: extract_shipments
+    description: "Read all 3pl/shipment_events_*.json pages, verify events array, record_count and required event fields, flatten events, stage to pickle."
+  - id: transform
+    file: dags/delivery_performance/pipeline.py
+    function: transform
+    description: "Aggregate CRM lines to one row per order_id (header fields + line_count/total_quantity/order_total); dedupe events by event_id, order by event_timestamp/recorded_at, take latest status, first picked_up and delivered timestamps and promised_delivery_at per order; left-join onto orders; derive is_late = delivered_at > promised_delivery_at (NULL if not delivered) and delivery_delay_hours; normalise timestamps to ISO-8601 +05:00."
+  - id: load
+    file: dags/delivery_performance/pipeline.py
+    function: load
+    description: "Full reload into SQLite: build delivery_performance__new (PK order_id, NOT NULL on order columns), atomically swap in, index order_date/latest_status/tracking_id."
+  - id: validate
+    file: dags/delivery_performance/pipeline.py
+    function: validate
+    description: "Run all validation_checks against the loaded table; raise (fail the DAG run) on any failure."
+validation_checks:
+  - id: row_count_equals_crm_orders
+    type: row_count
+    description: "Table has exactly one row per distinct CRM order_id (and > 0)."
+    params: {table: delivery_performance, expected: distinct_crm_order_id, build_value: 3986}
+  - id: pk_unique_order_id
+    type: unique
+    description: "order_id is unique (primary key)."
+    params: {columns: [order_id]}
+  - id: schema_columns_present
+    type: schema
+    description: "All output columns exist in the table."
+    params: {columns: [order_id, order_date, order_datetime, customer_id, warehouse_id, order_status, priority, channel, has_cold_chain_items, line_count, total_quantity, order_total, currency, requested_delivery_date, tracking_id, service_level, destination_city, latest_status, latest_status_at, pickup_at, delivered_at, promised_delivery_at, is_late, delivery_delay_hours, event_count, source_event_count, loaded_at]}
+  - id: not_null_required
+    type: not_null
+    description: "No NULLs in CRM-derived order columns, event_count, loaded_at."
+    params: {columns: [order_id, order_date, order_datetime, customer_id, warehouse_id, order_status, priority, channel, has_cold_chain_items, line_count, total_quantity, order_total, currency, requested_delivery_date, event_count, loaded_at]}
+  - id: event_orders_exist_in_crm
+    type: referential_integrity
+    description: "Every 3PL sales_order_id exists in CRM (no orphan shipments)."
+    params: {child: "3pl.sales_order_id", parent: "crm.order_id", build_orphans: 0}
+  - id: all_events_accounted
+    type: reconciliation
+    description: "SUM(event_count) equals the number of distinct 3PL event_ids read."
+    params: {expression: "SUM(event_count)", expected: distinct_source_event_ids, build_value: 15848}
+  - id: event_id_unique_in_source
+    type: unique
+    description: "3PL event_id is unique across all pages (no duplicate deliveries of events)."
+    params: {source: tpl_shipment_events_json, columns: [event_id]}
+  - id: accepted_values_latest_status
+    type: accepted_values
+    description: "latest_status in allowed set or NULL (no shipment)."
+    params: {column: latest_status, values: [picked_up, in_transit, delivered, returned], allow_null: true}
+  - id: shipment_fields_complete
+    type: conditional_not_null
+    description: "When tracking_id is present, latest_status, latest_status_at, pickup_at and promised_delivery_at are non-null."
+    params: {when: "tracking_id IS NOT NULL", columns: [latest_status, latest_status_at, pickup_at, promised_delivery_at]}
+  - id: no_shipment_means_no_events
+    type: expression
+    description: "tracking_id is NULL exactly when event_count = 0."
+    params: {expression: "(tracking_id IS NULL) = (event_count = 0)"}
+  - id: delivered_at_iff_delivered
+    type: expression
+    description: "delivered_at is set exactly when latest_status = 'delivered'."
+    params: {expression: "(delivered_at IS NOT NULL) = (latest_status = 'delivered')"}
+  - id: pickup_before_delivery
+    type: expression
+    description: "pickup_at <= delivered_at."
+    params: {expression: "pickup_at <= delivered_at", when: "delivered_at IS NOT NULL"}
+  - id: is_late_consistent
+    type: expression
+    description: "is_late = (delivered_at > promised_delivery_at) and = (delivery_delay_hours > 0) for delivered orders; is_late and delivery_delay_hours NULL otherwise."
+    params: {expression: "is_late = (delivered_at > promised_delivery_at)", build_late: 363, build_delivered: 3758}
+  - id: accepted_values_is_late
+    type: accepted_values
+    description: "is_late in {0,1} or NULL."
+    params: {column: is_late, values: [0, 1], allow_null: true}
+  - id: promised_date_matches_requested
+    type: cross_source
+    description: "Date part of 3PL promised_delivery_at equals CRM requested_delivery_date."
+    params: {expression: "substr(promised_delivery_at,1,10) = requested_delivery_date"}
+  - id: customer_id_consistent_across_sources
+    type: cross_source
+    description: "3PL customer_id equals CRM customer_id for every matched order."
+    params: {left: "crm.customer_id", right: "3pl.customer_id", build_mismatches: 0}
+  - id: order_total_reconciles
+    type: reconciliation
+    description: "SUM(order_total) equals SUM(line_total) across all CRM lines (tolerance 1.0)."
+    params: {expression: "SUM(order_total)", expected: crm_sum_line_total, tolerance: 1.0, build_value: 4741024523.34}
+  - id: line_count_reconciles
+    type: reconciliation
+    description: "SUM(line_count) equals total CRM line rows read."
+    params: {expression: "SUM(line_count)", expected: crm_total_rows, build_value: 10082}
+destination:
+  type: sqlite
+  table: delivery_performance
+  path: "${WAREHOUSE_DB}"
+build:
+  test_db: ./warehouse/test_build.db
+  attempts_used: 1
+  status: success
+version: 1

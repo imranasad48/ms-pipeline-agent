@@ -1,0 +1,15 @@
+{
+ "incident_id": "inc_6266f96feba1688b",
+ "detected_at": "2026-11-22T14:44:14+00:00",
+ "business_date": "2026-11-02",
+ "pipeline_id": "delivery_performance",
+ "source_id": "tpl_shipment_events_json",
+ "check_id": "schema.renamed:origin_warehouse_id->originWarehouseId",
+ "check_family": "schema",
+ "severity": "warn",
+ "expected_json": "{\"column_contract\": {\"column\": \"origin_warehouse_id\"}}",
+ "observed_json": "{\"files_affected\": 1, \"per_file\": {\"3pl/shipment_events_2026-11-02T11.json\": {\"column\": \"originWarehouseId\"}}}",
+ "affected_files_json": "[\"3pl/shipment_events_2026-11-02T11.json\"]",
+ "status": "open",
+ "same_day": []
+}

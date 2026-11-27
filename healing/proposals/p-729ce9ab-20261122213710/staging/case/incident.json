@@ -1,0 +1,15 @@
+{
+ "incident_id": "inc_729ce9ab3496e060",
+ "detected_at": "2026-11-22T16:37:10+00:00",
+ "business_date": "2026-11-06",
+ "pipeline_id": "delivery_performance",
+ "source_id": "tpl_shipment_events_json",
+ "check_id": "schema.renamed:sales_order_id->salesOrderId",
+ "check_family": "schema",
+ "severity": "critical",
+ "expected_json": "{\"column_contract\": {\"column\": \"sales_order_id\"}}",
+ "observed_json": "{\"files_affected\": 1, \"per_file\": {\"3pl/shipment_events_2026-11-06T11.json\": {\"column\": \"salesOrderId\"}}}",
+ "affected_files_json": "[\"3pl/shipment_events_2026-11-06T11.json\"]",
+ "status": "open",
+ "same_day": []
+}

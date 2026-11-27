@@ -1,0 +1,1 @@
+{"decision":"FIX","root_cause":"Source renamed origin_warehouse_id to originWarehouseId; pipeline already aliases it back, so no code change was required.","attempts":1,"files_changed":[]}

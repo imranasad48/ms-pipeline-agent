@@ -1,0 +1,19 @@
+  [tool] Bash: {'command': 'cat case/incident.json case/baseline.json | head -150; grep -n -i "tracking" dags/delivery_perfor
+  [tool] Bash: {'command': 'sed -n 130,200p dags/delivery_performance/pipeline.py; head -c 600 case/raw_files/*11.json'}
+  [tool] Bash: {'command': 'grep -n -B2 -A6 "EVENT_KEY_ALIASES =" dags/delivery_performance/pipeline.py'}
+  [tool] Bash: {'command': 'sed -i \'51s/"hubCode": "hub_code"}/"hubCode": "hub_code", "trackingId": "tracking_id"}/\' dags/d
+BSD sed failed; use Edit.
+  [tool] Edit: {'replace_all': False, 'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/hea
+  [tool] Bash: {'command': 'mkdir -p agent_out\n/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/.venv/bin/python /User
+  [tool] Bash: {'command': 'cat > agent_out/diagnosis.md <<\'E\'\n# Diagnosis inc_6b6c5f62dcdb1b99\n**Root cause:** In 3pl/sh
+The cause was a key rename: in `3pl/shipment_events_2026-10-27T11.json` the event field `tracking_id` arrived as `trackingId`, so `extract_shipments` failed on the missing field. This is plain schema drift with the same meaning, so I classified it as a fix.
+
+I added `"trackingId": "tracking_id"` to `EVENT_KEY_ALIASES` in `dags/delivery_performance/pipeline.py`. The old name is still accepted, and I did not touch any validation check or the manifest.
+
+The self-test passed on the first attempt for the extract, transform and load steps. Two validate checks still fail (`all_events_accounted` and `event_orders_exist_in_crm`), as does the overall `step:validate`. All three are in the baseline's `scope_artifacts`, so they come from the partial data slice and not from this incident. `shipment_fields_complete` failed in the baseline control and now passes.
+
+The `freshness.late_file` incident on the same file is a separate arrival-time issue, and this patch doesn't address it.
+
+I wrote `agent_out/diagnosis.md` and `agent_out/decision.json`.
+
+DECISION: FIX

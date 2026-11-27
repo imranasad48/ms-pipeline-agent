@@ -1,0 +1,16 @@
+  [tool] Bash: {'command': 'cat case/incident.json case/baseline.json case/scope.json; ls case/raw_files; cat dags/delivery_p
+  [tool] Bash: {'command': "cd case/data_root/crm; python3 - <<'E'\nimport pandas as pd\nd=pd.read_csv('sales_orders_2026-11-
+  [tool] Bash: {'command': 'cd /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-099c
+  [tool] Bash: {'command': 'python3 -c "\nimport json;d=json.load(open(\'agent_out/selftest.json\'));print({k:v for k,v in d[
+  [tool] Bash: {'command': 'cat > agent_out/diagnosis.md <<\'E\'\n# Diagnosis: duplicates on order_id+line_no (crm/sales_orde
+The incident is a plumbing defect, and the patch fixes it. The duplicate-key check is cleared, but three validate checks still fail in the self-test. I'm treating those as a separate problem.
+
+**Cause:** the CRM file has four lines that appear twice (`SO-20261102-0051` L1/L2 and `SO-20261102-0052` L1/L2). The copies are identical and sit at the end of the file. They are plain duplicates, so I classified it as FIX.
+
+**Patch:** `extract_orders` in `dags/delivery_performance/pipeline.py` now drops fully identical rows before staging. If two rows share a key but differ in content, both are kept, so a real conflict still shows up in validation. I did not change any validation checks or the manifest.
+
+**Self-test (one attempt):** `line_count_reconciles` now passes. It failed before because it counted the duplicated lines. `event_orders_exist_in_crm`, `all_events_accounted` and `shipment_fields_complete` still fail. They also failed in the baseline run on the unpatched pipeline. They come from the quarantined 3PL file for hour T11, which is the `origin_warehouse_id` rename incident, not this one. I left them alone.
+
+I wrote `agent_out/diagnosis.md` and `agent_out/decision.json`.
+
+DECISION: FIX

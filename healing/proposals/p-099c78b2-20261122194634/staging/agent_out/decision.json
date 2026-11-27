@@ -1,0 +1,1 @@
+{"decision":"FIX","root_cause":"CRM sales_orders file contained 4 exact duplicate line rows appended; extract now drops fully identical rows.","attempts":1,"files_changed":["dags/delivery_performance/pipeline.py"]}

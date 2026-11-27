@@ -1,0 +1,16 @@
+  [tool] Bash: {'command': 'cat case/incident.json; cat case/baseline.json | head -80; cat case/scope.json; ls case/raw_files
+  [tool] Bash: {'command': 'cat dags/delivery_performance/pipeline.py; head -3 case/data_root/crm/sales_orders_2026-11-02.csv
+  [tool] Bash: {'command': 'python3 - <<\'E\'\np=\'dags/delivery_performance/pipeline.py\'\ns=open(p).read()\nold=\'\'\'     
+  [tool] Bash: {'command': 'python3 -c "\nimport json;print(json.load(open(\'agent_out/selftest.json\'))[\'results\'])"'}
+  [tool] Bash: {'command': 'cat > agent_out/diagnosis.md <<\'E\'\n# inc_099c78b2cee6d9ab – duplicates on order_id+line_no (cr
+The incident is a plumbing defect, so I patched it and wrote the outputs. The patched pipeline no longer fails `line_count_reconciles`. Three other validate checks still fail, and they fail for a reason this patch doesn't touch.
+
+**Root cause:** the CRM file `crm/sales_orders_2026-11-02.csv` has four order lines replayed (lines 132–135 repeat lines 128–131 exactly). They belong to orders SO-20261102-0051 and SO-20261102-0052.
+
+**Patch:** in `extract_orders` in the staged `dags/delivery_performance/pipeline.py`, rows identical across all CRM schema columns within a file are now dropped, keeping the first. Rows that share a key but differ in content are kept, so real conflicts still show up in validation. I changed no validation checks and left the manifest alone.
+
+**Self-test (1 attempt):** the extract, transform and load steps pass and `line_count_reconciles` now passes. `event_orders_exist_in_crm`, `all_events_accounted` and `shipment_fields_complete` still fail. They fail because the quarantined `shipment_events_2026-11-02T11.json` (a separate schema-rename incident) is missing from the case data slice.
+
+I wrote `agent_out/diagnosis.md` and `agent_out/decision.json`.
+
+DECISION: FIX

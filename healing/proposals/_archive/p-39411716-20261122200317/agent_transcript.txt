@@ -1,0 +1,14 @@
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-39411
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-39411
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-39411
+  [tool] Bash: {'command': 'cd /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-3941
+  [tool] Bash: {'command': 'cd /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-3941
+  [tool] Bash: {'command': 'cd /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-3941
+  [tool] Bash: {'command': 'cd /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-3941
+The incident is classified as FIX, but I changed no files. The staged `pipeline.py` already maps `originWarehouseId` back to `origin_warehouse_id` through `EVENT_KEY_ALIASES`.
+
+- **Cause:** the 2026-11-09T11 3PL file renamed `origin_warehouse_id` to `originWarehouseId` in its 9 events. The values are unchanged, so this is schema drift only.
+- **Self-test (1 attempt):** extract, transform and load all pass. Validate fails on `event_orders_exist_in_crm` and `all_events_accounted`. Both fail the same way in the baseline's control run with this incident's files removed, so they come from the partial data slice and not from this incident.
+- **Outputs:** `agent_out/diagnosis.md` and `agent_out/decision.json` are written. The decision has `files_changed` empty.
+
+DECISION: FIX

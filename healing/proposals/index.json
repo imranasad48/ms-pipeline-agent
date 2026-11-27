@@ -1,4 +1,79 @@
 {
+ "p-099c78b2-20261122194551": {
+  "check_id": "duplicates.key:order_id+line_no",
+  "created_at": "2026-11-22T19:45:51",
+  "decision": "FIX",
+  "incident_id": "inc_099c78b2cee6d9ab",
+  "pipeline_id": "delivery_performance",
+  "status": "FAILED_VALIDATION",
+  "updated_at": "2026-11-22T19:46:11"
+ },
+ "p-099c78b2-20261122194612": {
+  "check_id": "duplicates.key:order_id+line_no",
+  "created_at": "2026-11-22T19:46:12",
+  "decision": "FIX",
+  "incident_id": "inc_099c78b2cee6d9ab",
+  "pipeline_id": "delivery_performance",
+  "status": "FAILED_VALIDATION",
+  "updated_at": "2026-11-22T19:46:34"
+ },
+ "p-099c78b2-20261122194634": {
+  "check_id": "duplicates.key:order_id+line_no",
+  "created_at": "2026-11-22T19:46:34",
+  "decision": "FIX",
+  "incident_id": "inc_099c78b2cee6d9ab",
+  "pipeline_id": "delivery_performance",
+  "status": "FAILED_VALIDATION",
+  "updated_at": "2026-11-22T19:46:58"
+ },
+ "p-099c78b2-20261122194658": {
+  "check_id": "duplicates.key:order_id+line_no",
+  "created_at": "2026-11-22T19:46:58",
+  "decision": "FIX",
+  "incident_id": "inc_099c78b2cee6d9ab",
+  "pipeline_id": "delivery_performance",
+  "status": "FAILED_VALIDATION",
+  "updated_at": "2026-11-22T19:47:22"
+ },
+ "p-099c78b2-20261122194722": {
+  "check_id": "duplicates.key:order_id+line_no",
+  "created_at": "2026-11-22T19:47:22",
+  "decision": "FIX",
+  "incident_id": "inc_099c78b2cee6d9ab",
+  "pipeline_id": "delivery_performance",
+  "status": "FAILED_VALIDATION",
+  "updated_at": "2026-11-22T19:47:46"
+ },
+ "p-099c78b2-20261122194747": {
+  "check_id": "duplicates.key:order_id+line_no",
+  "created_at": "2026-11-22T19:47:47",
+  "decision": "FIX",
+  "incident_id": "inc_099c78b2cee6d9ab",
+  "pipeline_id": "delivery_performance",
+  "status": "FAILED_VALIDATION",
+  "updated_at": "2026-11-22T19:48:08"
+ },
+ "p-099c78b2-20261122194809": {
+  "check_id": "duplicates.key:order_id+line_no",
+  "created_at": "2026-11-22T19:48:09",
+  "decision": "FIX",
+  "incident_id": "inc_099c78b2cee6d9ab",
+  "pipeline_id": "delivery_performance",
+  "status": "FAILED_VALIDATION",
+  "updated_at": "2026-11-22T19:48:35"
+ },
+ "p-1146ed85-20261122201451": {
+  "applied_files": [
+   "dags/delivery_performance/pipeline.py"
+  ],
+  "check_id": "schema.renamed:event_id->eventId",
+  "created_at": "2026-11-22T20:14:51",
+  "decision": "FIX",
+  "incident_id": "inc_1146ed8547c30cba",
+  "pipeline_id": "delivery_performance",
+  "status": "APPLIED",
+  "updated_at": "2026-11-22T20:15:20"
+ },
  "p-24e0b27b-20261119194243": {
   "check_id": "schema.renamed:vehicle_id->vehicleId",
   "created_at": "2026-11-19T19:42:43",
@@ -31,6 +106,25 @@
   "status": "APPLIED",
   "updated_at": "2026-11-19T19:51:42"
  },
+ "p-39411716-20261122195904": {
+  "check_id": "schema.renamed:origin_warehouse_id->originWarehouseId",
+  "created_at": "2026-11-22T19:59:04",
+  "decision": "FIX",
+  "incident_id": "inc_394117168708ab9e",
+  "pipeline_id": "delivery_performance",
+  "status": "FAILED_VALIDATION",
+  "updated_at": "2026-11-22T19:59:24"
+ },
+ "p-39411716-20261122200317": {
+  "check_id": "schema.renamed:origin_warehouse_id->originWarehouseId",
+  "created_at": "2026-11-22T20:03:17",
+  "decision": "FIX",
+  "incident_id": "inc_394117168708ab9e",
+  "pipeline_id": "delivery_performance",
+  "reject_reason": "stale test wound: rename already covered by existing alias; file restored",
+  "status": "REJECTED",
+  "updated_at": "2026-11-22T20:09:56"
+ },
  "p-420b5fbb-20261122183052": {
   "applied_files": [
    "dags/delivery_performance/pipeline.py"
@@ -42,6 +136,42 @@
   "pipeline_id": "delivery_performance",
   "status": "APPLIED",
   "updated_at": "2026-11-22T18:32:19"
+ },
+ "p-6266f96f-20261122194415": {
+  "applied_files": [
+   "dags/delivery_performance/pipeline.py"
+  ],
+  "check_id": "schema.renamed:origin_warehouse_id->originWarehouseId",
+  "created_at": "2026-11-22T19:44:15",
+  "decision": "FIX",
+  "incident_id": "inc_6266f96feba1688b",
+  "pipeline_id": "delivery_performance",
+  "status": "APPLIED",
+  "updated_at": "2026-11-22T19:45:12"
+ },
+ "p-6b6c5f62-20261122191135": {
+  "applied_files": [
+   "dags/delivery_performance/pipeline.py"
+  ],
+  "check_id": "schema.renamed:tracking_id->trackingId",
+  "created_at": "2026-11-22T19:11:35",
+  "decision": "FIX",
+  "incident_id": "inc_6b6c5f62dcdb1b99",
+  "pipeline_id": "delivery_performance",
+  "status": "APPLIED",
+  "updated_at": "2026-11-22T19:12:28"
+ },
+ "p-729ce9ab-20261122213710": {
+  "applied_files": [
+   "dags/delivery_performance/pipeline.py"
+  ],
+  "check_id": "schema.renamed:sales_order_id->salesOrderId",
+  "created_at": "2026-11-22T21:37:10",
+  "decision": "FIX",
+  "incident_id": "inc_729ce9ab3496e060",
+  "pipeline_id": "delivery_performance",
+  "status": "APPLIED",
+  "updated_at": "2026-11-22T21:37:53"
  },
  "p-ffb5e01e-20261122185337": {
   "applied_files": [

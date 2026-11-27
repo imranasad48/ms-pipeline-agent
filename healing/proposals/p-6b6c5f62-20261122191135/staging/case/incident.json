@@ -1,0 +1,30 @@
+{
+ "incident_id": "inc_6b6c5f62dcdb1b99",
+ "detected_at": "2026-11-22T14:11:34+00:00",
+ "business_date": "2026-10-27",
+ "pipeline_id": "delivery_performance",
+ "source_id": "tpl_shipment_events_json",
+ "check_id": "schema.renamed:tracking_id->trackingId",
+ "check_family": "schema",
+ "severity": "critical",
+ "expected_json": "{\"column_contract\": {\"column\": \"tracking_id\"}}",
+ "observed_json": "{\"files_affected\": 1, \"per_file\": {\"3pl/shipment_events_2026-10-27T11.json\": {\"column\": \"trackingId\"}}}",
+ "affected_files_json": "[\"3pl/shipment_events_2026-10-27T11.json\"]",
+ "status": "open",
+ "same_day": [
+  {
+   "incident_id": "inc_e293aed0e0bcc400",
+   "detected_at": "2026-11-22T14:11:34+00:00",
+   "business_date": "2026-10-27",
+   "pipeline_id": "delivery_performance",
+   "source_id": "tpl_shipment_events_json",
+   "check_id": "freshness.late_file",
+   "check_family": "freshness",
+   "severity": "warn",
+   "expected_json": "{\"files_expected\": 24, \"late_tolerance_hours\": 1.0}",
+   "observed_json": "{\"files_affected\": 1, \"per_file\": {\"3pl/shipment_events_2026-10-27T11.json\": {\"arrived\": \"2026-11-22T19:11\", \"expected_by\": \"2026-10-27T12:15\", \"hours_late\": 630.94}}}",
+   "affected_files_json": "[\"3pl/shipment_events_2026-10-27T11.json\"]",
+   "status": "open"
+  }
+ ]
+}
