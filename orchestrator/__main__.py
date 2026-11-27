@@ -22,6 +22,7 @@ def main(argv=None) -> int:
                    help="demo mode: re-run detection every N seconds (needs --business-date)")
     w.add_argument("--business-date", help="with --detect-every: the date to scan; "
                    "also limits the heal queue to that date")
+    w.add_argument("--no-alerts", action="store_true", help="disable email alerts (see python -m alerts)")
     w.add_argument("--no-manifest", action="store_true", help="ablation (see healing heal)")
     a = ap.parse_args(argv)
     if a.detect_every and not a.business_date:
@@ -44,8 +45,19 @@ def main(argv=None) -> int:
         from detection.service import run_and_store
         return run_and_store(date, data_root=s.data_root, db=s.incidents_db)
 
+    alerter = None
+    if not a.no_alerts:
+        try:
+            from alerts.alerter import Alerter
+            alerter = Alerter(s, cfg["auto_heal_prefixes"], business_date=a.business_date)
+            print(f"alerts: ON  {alerter.describe()}  (backlog seeded: {alerter.ledger.seeded_count()} incident(s))",
+                  flush=True)
+        except Exception as e:       # alerting is optional: never block the orchestrator from starting
+            print(f"alerts: DISABLED (could not initialise: {type(e).__name__}: {e})", flush=True)
+    else:
+        print("alerts: OFF (--no-alerts)", flush=True)
     Orchestrator(s, cfg, business_date=a.business_date, detect_every=a.detect_every,
-                 detect_fn=detect, heal_fn=run_heal).run()
+                 detect_fn=detect, heal_fn=run_heal, alerter=alerter).run()
     return 0
 
 

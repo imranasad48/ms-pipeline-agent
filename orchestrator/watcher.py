@@ -72,11 +72,12 @@ def log(msg: str) -> None:
 
 class Orchestrator:
     def __init__(self, settings: Settings, cfg: dict, business_date: str | None = None,
-                 detect_every: float | None = None, detect_fn=None, heal_fn=None,
+                 detect_every: float | None = None, detect_fn=None, heal_fn=None, alerter=None,
                  status_path: Path = STATUS_PATH, sleep=time.sleep, clock=time.monotonic):
         self.s, self.cfg = settings, cfg
         self.business_date, self.detect_every = business_date, detect_every
         self.detect_fn, self.heal_fn = detect_fn, heal_fn
+        self.alerter = alerter          # alerts.alerter.Alerter or None; never allowed to break the loop
         self.status_path, self.sleep, self.clock = status_path, sleep, clock
         self.in_flight: set = set()
         self.stop = False
@@ -111,6 +112,7 @@ class Orchestrator:
                      since=_now(), last_detect=self._last_detect_at)
         try:
             _, verdict = self.heal_fn(self.s, iid)
+            self._alert(lambda a: a.on_heal_result(inc, verdict))
             log(f"{iid}: verdict {verdict}"
                 + ("  -> awaiting human approval on the dashboard" if verdict == "READY_FOR_APPROVAL" else ""))
         except BaseException as e:   # incl. Ctrl-C mid-heal: leave no half-state claim, then re-raise
@@ -123,8 +125,17 @@ class Orchestrator:
                          last_detect=self._last_detect_at)
         return True
 
+    def _alert(self, fn) -> None:
+        if self.alerter is None:
+            return
+        try:
+            fn(self.alerter)
+        except Exception as e:       # alerting must never crash or stall the loop or a heal
+            log(f"alerting failed: {type(e).__name__}: {e}")
+
     def cycle(self) -> bool:
         self.maybe_detect()
+        self._alert(lambda a: a.scan_new_incidents())
         return self.heal_one()
 
     # ---- loop --------------------------------------------------------------------

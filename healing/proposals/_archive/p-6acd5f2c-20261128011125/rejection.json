@@ -1,0 +1,1 @@
+{"reason": "validator false negative: slice-artifact checks not excused; fixed in e91ab6d", "rejected_at": "2026-11-28T02:05:51", "decided_by": "Asad Imran", "decided_via": "cli", "decided_at": "2026-11-28T02:05:51"}
