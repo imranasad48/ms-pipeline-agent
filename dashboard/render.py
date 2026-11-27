@@ -30,8 +30,17 @@ pre.diff .add{color:var(--ok)}pre.diff .del{color:var(--crit)}pre.diff .hunk{col
 button{font:inherit;border:0;border-radius:6px;padding:7px 18px;cursor:pointer;color:#fff}.approve{background:var(--ok)}.reject{background:var(--crit)}
 textarea{font:inherit;width:300px;max-width:100%;height:34px;vertical-align:top;border:1px solid var(--line);border-radius:6px;padding:5px 8px;background:var(--bg);color:var(--ink)}
 .flash{border-left:4px solid var(--info)}.flash.err{border-color:var(--crit)}.banner{border-left:4px solid var(--warn)}
+.nav{margin:0 0 10px}.nav a[aria-current]{font-weight:600;color:var(--ink);text-decoration:none}
 .md h1,.md h2,.md h3{font-size:14px;margin:14px 0 6px}.md p,.md li{margin:3px 0}.md ul{padding-left:20px;margin:4px 0}
 """
+
+
+def nav(active: str, live: bool) -> str:
+    """Link between the main page and the governance page (live: server routes; static: files)."""
+    home, gov = ("/", "/governance") if live else ("index.html", "governance.html")
+    cur = lambda n: ' aria-current="page"' if n == active else ""  # noqa: E731
+    return (f'<nav class="nav"><a href="{home}"{cur("main")}>Dashboard</a> &middot; '
+            f'<a href="{gov}"{cur("governance")}>Governance</a></nav>')
 
 
 def _pill(text: str, cls: str = "") -> str:
@@ -160,7 +169,7 @@ def render(d: dict, now: dt.datetime | None = None, live: bool = False, flash: s
          f"<meta name=viewport content='width=device-width,initial-scale=1'>"
          f"<title>Pipeline Agent Dashboard</title><style>{CSS}</style>"
          f"{REFRESH_JS if live else ''}</head><body><main>",
-         "<h1>Pipeline Agent</h1>",
+         nav("main", live), "<h1>Pipeline Agent</h1>",
          f"<p class=sub>Generated {e(now.isoformat(timespec='seconds'))} &middot; "
          f"read-only view of manifests, detection/incidents.db, healing/proposals and evaluation results</p>",
          *( [f'<section class="card flash{" err" if flash_error else ""}">{e(flash)}</section>']

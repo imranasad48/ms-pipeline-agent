@@ -5,6 +5,7 @@ import datetime as dt
 import contextlib
 import difflib
 import fcntl
+import getpass
 import json
 import os
 import shutil
@@ -134,7 +135,18 @@ def render_proposal(case, verdict: str, decision: dict | None, diagnosis: str,
 
 
 # ---------------------------------------------------------- apply / reject
-def apply_proposal(settings: Settings, proposal_id: str, force_drift: bool = False) -> list:
+def decision_record(channel: str) -> dict:
+    """Who decided, through which channel, when. Actor = $PIPELINE_AGENT_USER, else the OS user."""
+    try:
+        actor = os.environ.get("PIPELINE_AGENT_USER") or getpass.getuser()
+    except Exception:
+        actor = "unknown"
+    return {"decided_by": actor, "decided_via": channel,
+            "decided_at": dt.datetime.now().isoformat(timespec="seconds")}
+
+
+def apply_proposal(settings: Settings, proposal_id: str, force_drift: bool = False,
+                   channel: str = "cli") -> list:
     """Copy changed staged files over the live ones (human-run)."""
     root = proposal_dir(settings, proposal_id)
     status = _read_index(settings).get(proposal_id, {}).get("status")
@@ -150,24 +162,26 @@ def apply_proposal(settings: Settings, proposal_id: str, force_drift: bool = Fal
                              "(or --force-drift)")
     for r in changed:
         shutil.copy2(root / "staging" / r, settings.repo_root / r)
-    update_index(settings, proposal_id, status=APPLIED, applied_files=changed)
+    update_index(settings, proposal_id, status=APPLIED, applied_files=changed,
+                 **decision_record(channel))
     incident_id = _read_index(settings).get(proposal_id, {}).get("incident_id")
     if incident_id:      # the one sanctioned healing -> detection write (see its docstring)
         mark_resolved_pending_verification(settings.incidents_db, incident_id)
     return changed
 
 
-def reject_proposal(settings: Settings, proposal_id: str, reason: str) -> Path:
+def reject_proposal(settings: Settings, proposal_id: str, reason: str, channel: str = "cli") -> Path:
     """Archive the proposal under proposals/_archive/ with the reason."""
     root = proposal_dir(settings, proposal_id)
     if root.parent.name == "_archive":
         raise SystemExit(f"{proposal_id} is already archived")
     if _read_index(settings).get(proposal_id, {}).get("status") == APPLIED:
         raise SystemExit(f"{proposal_id} was already applied")
+    rec = decision_record(channel)
     (root / "rejection.json").write_text(json.dumps(
-        {"reason": reason, "rejected_at": dt.datetime.now().isoformat(timespec="seconds")}))
+        {"reason": reason, "rejected_at": rec["decided_at"], **rec}))
     dest = settings.proposals_dir / "_archive" / proposal_id
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(root), str(dest))
-    update_index(settings, proposal_id, status=REJECTED, reject_reason=reason)
+    update_index(settings, proposal_id, status=REJECTED, reject_reason=reason, **rec)
     return dest

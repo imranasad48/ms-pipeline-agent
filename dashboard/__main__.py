@@ -1,7 +1,7 @@
 """CLI:  python -m dashboard {build,serve,dump}
 
-build  -> dashboard/site/index.html (static, self-contained)
-serve  -> live server on http://localhost:8099: rebuilt per request, auto-refresh, approve/reject
+build  -> dashboard/site/index.html + governance.html (static, self-contained)
+serve  -> live server on http://localhost:8099 (+ /governance): rebuilt per request, auto-refresh, approve/reject
 dump   -> the same data as plain text (what the page shows), for terminals and tests
 """
 from __future__ import annotations
@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from .data import Paths, assemble
+from .governance import assemble_governance, render_governance
 from .render import render
 
 
@@ -18,6 +19,7 @@ def build(paths: Paths) -> Path:
     paths.site.mkdir(parents=True, exist_ok=True)
     out = paths.site / "index.html"
     out.write_text(render(assemble(paths)))
+    (paths.site / "governance.html").write_text(render_governance(assemble_governance(paths)))
     return out
 
 

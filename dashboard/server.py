@@ -13,6 +13,7 @@ from healing.proposals import apply_proposal, reject_proposal
 from healing.settings import Settings
 
 from .data import Paths, assemble
+from .governance import assemble_governance, render_governance
 from .render import render
 
 
@@ -40,6 +41,8 @@ def make_handler(paths: Paths, settings: Settings):
 
         def do_GET(self):
             url = urllib.parse.urlparse(self.path)
+            if url.path == "/governance":       # no auto-refresh here: open <details> must stay open
+                return self._send(200, render_governance(assemble_governance(paths), live=True).encode())
             if url.path not in ("/", "/index.html"):
                 return self._send(404, b"not found", "text/plain")
             q = urllib.parse.parse_qs(url.query)
@@ -60,13 +63,13 @@ def make_handler(paths: Paths, settings: Settings):
                 return self._redirect("missing proposal_id", True)
             try:
                 if self.path == "/approve":
-                    files = apply_proposal(settings, pid)
+                    files = apply_proposal(settings, pid, channel="dashboard")
                     return self._redirect(f"Applied {pid}: {', '.join(files)}. "
                                           "Incident -> resolved_pending_verification.")
                 reason = (form.get("reason") or [""])[0].strip()
                 if not reason:
                     return self._redirect("A rejection reason is required.", True)
-                reject_proposal(settings, pid, reason)
+                reject_proposal(settings, pid, reason, channel="dashboard")
                 self._redirect(f"Rejected {pid}.")
             except SystemExit as ex:               # healing code signals refusals this way
                 self._redirect(f"Refused: {ex}", True)
