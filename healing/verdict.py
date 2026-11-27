@@ -21,7 +21,8 @@ def select_targets(before: dict, incident_key: str | None) -> list:
     return [incident_key] if incident_key and incident_key in before else []
 
 
-def decide(before: dict, after: dict, target_keys: list, scope_artifacts=()) -> dict:
+def decide(before: dict, after: dict, target_keys: list, scope_artifacts=(),
+           excuse_targets: bool = False) -> dict:
     """Verdict rules (all must hold for READY_FOR_APPROVAL):
 
     1. every target check passes after the patch;
@@ -30,11 +31,20 @@ def decide(before: dict, after: dict, target_keys: list, scope_artifacts=()) -> 
        unless it also fails in the CONTROL run (same scope, incident files removed):
        such "scope artifacts" come from the case data being a partial slice, not the patch;
     4. there is at least one target (otherwise there is nothing to verify).
+
+    ``excuse_targets`` is set only for an *emptied-source* control (the incident's files were the
+    only files of their source, so the control had to run on emptied copies instead of absent
+    ones). There, a baseline-failing check that also fails with the source emptied is not
+    evidence about the patch, so such checks are removed from the targets (and from the
+    required-green set) -- but at least one remaining target must still go green (rule 4), and
+    rules 2-3 (no regressions, no new failures) are unchanged.
     """
+    artifacts = set(scope_artifacts)
+    if excuse_targets:
+        target_keys = [k for k in target_keys if k not in artifacts]
     unresolved = [k for k in target_keys if after.get(k) != PASS]
     regressions = sorted(k for k, v in before.items()
                          if v == PASS and after.get(k, FAIL) != PASS)
-    artifacts = set(scope_artifacts)
     unmasked = sorted(k for k, v in before.items()
                       if v == SKIPPED and after.get(k) == FAIL and k not in artifacts)
     # checks that never ran at baseline (e.g. validate:* behind a failed step) count too

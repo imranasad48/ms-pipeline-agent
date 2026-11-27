@@ -207,7 +207,7 @@ def render(d: dict, now: dt.datetime | None = None, live: bool = False, flash: s
 
     # healing
     cls = {"READY_FOR_APPROVAL": "warn", "APPLIED": "ok", "ESCALATED": "info",
-           "FAILED": "critical", "REJECTED": "mute"}
+           "FAILED": "critical", "FAILED_VALIDATION": "critical", "REJECTED": "mute"}
     counts = " ".join(_pill(f"{k}: {v}", cls.get(k, "")) for k, v in sorted(d["proposal_counts"].items()))
     s += ['<section class=card><h2>Healing proposals</h2>', f"<p>{counts or 'no proposals'}</p>",
           _table(["proposal", "status", "incident status", "pipeline", "check", "decision", "updated", "note"],

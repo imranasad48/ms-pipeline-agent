@@ -32,6 +32,23 @@ def _live_snapshot(settings: Settings, case: Case) -> dict:
     return snap
 
 
+_EMPTY_BY_SUFFIX = {".json": "[]\n", ".jsonl": "", ".ndjson": "", ".txt": ""}
+
+
+def _emptied_content(path) -> str | None:
+    """Zero-row stand-in for ``path`` (CSV keeps its header line), or None if the format is unknown."""
+    if path.suffix == ".csv":
+        with open(path, newline="") as fh:
+            return fh.readline().rstrip("\r\n") + "\n"
+    return _EMPTY_BY_SUFFIX.get(path.suffix)
+
+
+def _control_cannot_run(baseline_res: dict, ctl: dict) -> bool:
+    """True when the control failed a step the baseline PASSED: its input is gone."""
+    return any(k.startswith("step:") and v == FAIL and baseline_res.get(k) == PASS
+               for k, v in ctl["results"].items())
+
+
 def run_baseline(settings: Settings, case: Case) -> dict:
     """Step 2: unpatched pipeline on the case data + detection checks."""
     res = run_pipeline(settings, case.originals, case.pipeline_id, case.steps,
@@ -47,9 +64,33 @@ def run_baseline(settings: Settings, case: Case) -> dict:
         (control_root / f.split("#", 1)[0]).unlink(missing_ok=True)
     ctl = run_pipeline(settings, case.originals, case.pipeline_id, case.steps,
                        control_root, case.work, "control")
+    control_mode = "removed"
+    if _control_cannot_run(res["results"], ctl):
+        # The incident's files were the only files of their source, so removing them leaves the
+        # pipeline nothing to read and the control says nothing about the downstream checks.
+        # Fallback (deterministic): keep the files but empty them (zero rows; CSV header kept) and
+        # rerun. Checks failing with the source emptied cannot be blamed on a patch. If that run
+        # cannot execute either (unknown format, schema-sensitive extract) we keep the original
+        # control and stay strict.
+        emptied = case.work / "control_emptied_root"
+        shutil.rmtree(emptied, ignore_errors=True)
+        shutil.copytree(case.scoped_root, emptied)
+        ok = True
+        for f in json.loads(case.incident["affected_files_json"]):
+            target = emptied / f.split("#", 1)[0]
+            content = _emptied_content(target) if target.exists() else None
+            if content is None:
+                ok = False
+                break
+            target.write_text(content)
+        if ok:
+            ctl2 = run_pipeline(settings, case.originals, case.pipeline_id, case.steps,
+                                emptied, case.work, "control_emptied")
+            if not _control_cannot_run(res["results"], ctl2):
+                ctl, control_mode = ctl2, "emptied_source"
     baseline = {"pipeline": res["results"], "errors": res["errors"],
                 "detection_failing": sorted(det),
-                "control": ctl["results"],
+                "control": ctl["results"], "control_mode": control_mode,
                 "scope_artifacts": sorted(k for k, v in ctl["results"].items() if v == FAIL)}
     (case.root / "baseline.json").write_text(json.dumps(baseline, indent=1))
     (case.staging / "case" / "baseline.json").write_text(json.dumps(baseline, indent=1))
@@ -72,7 +113,8 @@ def run_validation(settings: Settings, case: Case, baseline: dict) -> dict:
     pol_status = pol.pop("policy:manifest_versioned")
     before["policy:manifest_versioned"], after["policy:manifest_versioned"] = PASS, pol_status
     targets = select_targets(before, f"detect:{det_key}")
-    d = decide(before, after, targets, baseline.get("scope_artifacts", []))
+    d = decide(before, after, targets, baseline.get("scope_artifacts", []),
+               excuse_targets=baseline.get("control_mode") == "emptied_source")
     if pol_status != PASS:
         d["verdict"] = FAILED
         d["regressions"] = sorted(d["regressions"] + ["policy:manifest_versioned"])

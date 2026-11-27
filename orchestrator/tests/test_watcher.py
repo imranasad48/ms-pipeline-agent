@@ -54,7 +54,7 @@ def test_pick_business_date_scope(toy):
 
 def test_pick_skips_any_proposal_status_and_in_flight(toy):
     first = pick_eligible(toy.settings, PFX)["incident_id"]
-    for status in ("READY_FOR_APPROVAL", "ESCALATED", "APPLIED", "FAILED", "REJECTED"):
+    for status in ("READY_FOR_APPROVAL", "ESCALATED", "APPLIED", "FAILED", "FAILED_VALIDATION", "REJECTED"):
         update_index(toy.settings, "p-1", incident_id=first, status=status)
         assert pick_eligible(toy.settings, PFX)["incident_id"] != first, status
     update_index(toy.settings, "p-1", incident_id="other")             # no longer blocks `first`
@@ -124,3 +124,14 @@ def test_end_to_end_with_toy_agent(toy, tmp_path):
     ready = [p for p in __import__("healing.proposals", fromlist=["x"]).list_proposals(toy.settings)
              if p["status"] == "READY_FOR_APPROVAL"]
     assert len(ready) == 1
+
+
+def test_failed_validation_never_reheals_and_incident_logs_once(toy, tmp_path, capsys):
+    """FAILED_VALIDATION must end the incident's turn: one 'new incident' line each, no loop."""
+    def heal(settings, iid):
+        update_index(settings, f"p-{iid}", incident_id=iid, status="FAILED_VALIDATION")
+        return None, "FAILED_VALIDATION"
+
+    _orch(toy, tmp_path, heal).run(max_cycles=6)
+    lines = [ln for ln in capsys.readouterr().out.splitlines() if "new incident" in ln]
+    assert len(lines) == 2 and len({ln.split("new incident ")[1].split(":")[0] for ln in lines}) == 2
