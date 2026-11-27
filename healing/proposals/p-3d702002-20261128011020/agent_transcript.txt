@@ -1,0 +1,22 @@
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-3d702
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-3d702
+  [tool] Read: {'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-3d702
+  [tool] Bash: {'command': 'cd case/raw_files && ls -R . | head; f=$(find . -name \'sales_orders_2026-11-03.csv\'); grep -n "
+Exact duplicate rows. Dedupe fully-identical rows in extract_orders.
+  [tool] Edit: {'replace_all': False, 'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/hea
+  [tool] Bash: {'command': 'cd /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-3d70
+  [tool] Bash: {'command': 'cat agent_out/selftest.json | head -50'}
+  [tool] Bash: {'command': 'cat > agent_out/diagnosis.md <<\'E\'\n# Diagnosis: duplicates.key:order_line_id (delivery_perform
+The fix is a one-line dedup in `extract_orders`, and the duplicate-driven failure is gone. The self-test still reports `step:validate` as failed, because two other checks fail on the partial data slice.
+
+**Cause:** `crm/sales_orders_2026-11-03.csv` lists lines L2, L3 and L4 of order SO-20261103-0049 twice. The repeats are byte-identical to the originals, so this looks like a replay. That also explains the sibling `order_id+line_no` incident.
+
+**Fix:** `extract_orders` in `dags/delivery_performance/pipeline.py` now drops fully identical rows within each file, keeping the first copy. Rows that share a key but differ in content are kept, so a real conflict would still show up. I changed no validation checks and left the manifest alone.
+
+**Self-test (one attempt):**
+- **Fixed:** `line_count_reconciles`, which failed in the baseline, now passes.
+- **Still failing:** `event_orders_exist_in_crm` and `all_events_accounted`. The case data holds only this day's CRM file, so shipment events for other days' orders look orphaned. These failed in the baseline too and are unrelated to this incident, so I left them alone.
+
+I wrote `agent_out/diagnosis.md` and `agent_out/decision.json`.
+
+DECISION: FIX

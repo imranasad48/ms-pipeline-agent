@@ -1,0 +1,25 @@
+  [tool] Bash: {'command': 'cat case/incident.json case/baseline.json case/scope.json; ls -R case/raw_files case/data_root | 
+  [tool] Bash: {'command': 'cat dags/delivery_performance/pipeline.py; cat manifests/delivery_performance.yaml | head -80'}
+  [tool] Bash: {'command': 'cd case/raw_files/crm; head -3 sales_orders_2026-11-03.csv; grep -n "SO-20261103-0049" sales_orde
+  [tool] Edit: {'replace_all': False, 'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/hea
+  [tool] Bash: {'command': 'cd /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-6acd
+Next I'll check whether the orphan-event failures come from the partial data slice (events for orders placed on days that aren't in this case).
+  [tool] Bash: {'command': 'cd /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-6acd
+All 32 orphan orders are from Nov 1–2. Their CRM files aren't in this case's data, so these two failures come from the partial data slice, not from this incident. Writing the outputs.
+  [tool] Bash: {'command': 'mkdir -p agent_out && cat > agent_out/diagnosis.md <<\'EOF\'\n# inc_6acd5f2c073a6b87 — delivery_p
+I patched the staged pipeline so it removes exact repeat order lines. After the patch, 2 of the 18 validate checks still fail (`event_orders_exist_in_crm` and `all_events_accounted`), so the self-test is not fully green. Both failures come from the partial data slice, not from this incident.
+
+**What went wrong:** the CRM file `crm/sales_orders_2026-11-03.csv` lists three lines of order SO-20261103-0049 (L2, L3, L4) twice. The repeats at rows 129–131 match the originals in every column. That made the source show 7 rows for a 4-line order, which failed `line_count_reconciles`. It also quietly counted that order's total about 2.24M PKR too high. `order_total_reconciles` still passed only because it compares against the same inflated raw sum.
+
+**Decision: FIX.** The repeats are identical in every column, so dropping them doesn't change what the data means.
+
+**The patch** (`extract_orders` in the staged `dags/delivery_performance/pipeline.py`):
+- After the CRM files are combined, rows that are exact copies are dropped and the number dropped is logged.
+- If two rows share the same line key (`order_id`+`line_no`, or `order_line_id`) but have different values, the step stops with an error. That case needs a person to decide, so it is not settled silently.
+- I didn't change any validation checks or the manifest.
+
+**Self-test (1 attempt):** all steps up to load pass, and `line_count_reconciles` now passes. The two checks that still fail are about shipment events whose orders aren't in the CRM data. All 32 of those orders are from Nov 1–2, and their CRM files aren't in this case's data. Both checks were already failing before the patch, and the control run shows validate fails on this data anyway.
+
+The write-up is in `agent_out/diagnosis.md` and `agent_out/decision.json`; self-test results are in `agent_out/selftest.json`.
+
+DECISION: FIX

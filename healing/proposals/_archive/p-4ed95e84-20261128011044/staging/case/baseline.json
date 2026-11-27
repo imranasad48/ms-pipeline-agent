@@ -1,0 +1,42 @@
+{
+ "pipeline": {
+  "step:extract": "pass",
+  "step:load": "fail",
+  "step:transform": "pass",
+  "step:validate": "skipped"
+ },
+ "errors": {
+  "step:load": "IntegrityError: UNIQUE constraint failed: sales_orders__new.order_line_id  (at pipeline.py:145)"
+ },
+ "detection_failing": [
+  "crm_sales_orders_csv:duplicates.key:order_id+line_no",
+  "crm_sales_orders_csv:duplicates.key:order_line_id"
+ ],
+ "control": {
+  "step:extract": "pass",
+  "step:load": "pass",
+  "step:transform": "pass",
+  "step:validate": "fail",
+  "validate:accepted_values_channel": "pass",
+  "validate:accepted_values_currency": "pass",
+  "validate:accepted_values_order_status": "pass",
+  "validate:accepted_values_priority": "pass",
+  "validate:line_total_consistent": "pass",
+  "validate:not_null_required": "pass",
+  "validate:order_date_matches_file": "pass",
+  "validate:pk_unique_order_line_id": "pass",
+  "validate:range_discount_pct": "pass",
+  "validate:range_quantity_positive": "pass",
+  "validate:range_unit_price_positive": "pass",
+  "validate:row_count_match": "fail",
+  "validate:row_count_per_file": "fail",
+  "validate:schema_columns_present": "pass",
+  "validate:unique_order_id_line_no": "pass"
+ },
+ "control_mode": "emptied_source",
+ "scope_artifacts": [
+  "step:validate",
+  "validate:row_count_match",
+  "validate:row_count_per_file"
+ ]
+}

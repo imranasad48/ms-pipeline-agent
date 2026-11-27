@@ -1,0 +1,1 @@
+{"decision":"FIX","root_cause":"Exact duplicate order lines (L2-L4 of SO-20261103-0049) replayed in the CRM CSV; now dropped as identical rows at extract.","attempts":1,"files_changed":["dags/delivery_performance/pipeline.py"]}

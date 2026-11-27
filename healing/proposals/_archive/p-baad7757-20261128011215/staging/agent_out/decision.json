@@ -1,0 +1,1 @@
+{"decision": "FIX", "root_cause": "The source CSV for 2026-11-03 re-emitted three identical copies of order SO-20261103-0049 lines L2-L4 (exact full-row duplicates), violating the order_line_id primary key on load.", "attempts": 1, "files_changed": ["dags/crm_sales_orders/pipeline.py"]}

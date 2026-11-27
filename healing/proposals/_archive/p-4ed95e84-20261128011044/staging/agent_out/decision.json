@@ -1,0 +1,1 @@
+{"decision": "FIX", "root_cause": "The 2026-11-03 CRM export repeated 3 order lines (SO-20261103-0049-L2..L4) as exact full-row duplicates, which broke the order_line_id primary key on load.", "attempts": 1, "files_changed": ["dags/crm_sales_orders/pipeline.py"]}

@@ -31,9 +31,14 @@ STRICT = (PIPELINE
           .replace('CREATE TABLE toy (id TEXT PRIMARY KEY, amount REAL)', 'CREATE TABLE toy (id TEXT, amount REAL)'))
 
 
-def _setup(toy, csv=DUP_CSV):
-    assert "FileNotFoundError" in STRICT and "unique_id" in STRICT
-    (toy.repo / "dags/toy/pipeline.py").write_text(STRICT)
+# validate crashes on an EMPTY table (None > 0) before any check line prints, like the real
+# delivery_performance validate (NULL sum on an empty table) -> no check-level control evidence
+CRASHY = STRICT.replace('r = {"has_rows"', 'r = {"max_positive": con.execute("SELECT MAX(amount) FROM toy").fetchone()[0] > 0,\n             "has_rows"')
+
+
+def _setup(toy, csv=DUP_CSV, pipeline=STRICT):
+    assert "FileNotFoundError" in pipeline and "unique_id" in pipeline
+    (toy.repo / "dags/toy/pipeline.py").write_text(pipeline)
     (toy.data / "crm/toy_2026-08-14.csv").write_text(csv)
     con = sqlite3.connect(toy.db)
     con.execute("UPDATE incidents SET check_id='duplicates.key:id' WHERE incident_id=?", (INC,))
@@ -118,3 +123,49 @@ def test_decide_excuse_targets_unit():
     none = V.decide({"validate:partial": F}, {"validate:partial": F}, ["validate:partial"],
                     ["validate:partial"], excuse_targets=True)
     assert none["verdict"] == V.FAILED
+
+
+# ---- empty-source validate crash: need check-level control evidence (reduced-slice control) ----
+def test_emptied_control_without_check_level_results_falls_back_to_reduced_slice(toy):
+    _setup(toy, pipeline=CRASHY)
+    b = run_baseline(toy.settings, assemble_case(toy.settings, INC))
+    assert b["control_mode"] == "reduced_source"
+    assert "validate:(unparsed)" not in b["control"]
+    assert "validate:min_rows_10" in b["scope_artifacts"]
+    assert "validate:unique_id" not in b["scope_artifacts"]
+
+
+def test_one_target_fixed_two_slice_artifacts_still_failing_is_ready(toy):
+    """The delivery_performance shape: one check fixed, two baseline-failing checks that also fail in control."""
+    two = CRASHY.replace('"min_rows_10":', '"min_rows_8": con.execute("SELECT COUNT(*) FROM toy").fetchone()[0] >= 8,\n'
+                         '             "min_rows_10":')
+    _setup(toy, pipeline=two)
+    case, verdict = run_heal(toy.settings, INC, agent_fn=dedupe_agent)
+    v = json.loads((case.root / "validation.json").read_text())
+    assert verdict == V.READY, v
+    assert v["target_keys"] == ["validate:unique_id"]
+    assert v["after"]["validate:min_rows_8"] == v["after"]["validate:min_rows_10"] == "fail"
+    assert {"validate:min_rows_8", "validate:min_rows_10"} <= set(v["scope_artifacts"])
+
+
+def test_check_failing_after_patch_but_passing_in_control_blocks(toy):
+    """No control evidence -> no excuse: a check that still fails and passes in the control is a real failure."""
+    guard = CRASHY.replace('"min_rows_10":', '"min_amount_ge_1": con.execute("SELECT MIN(amount) FROM toy").fetchone()[0] >= 1,\n'
+                           '             "min_rows_10":')
+    _setup(toy, csv="id,amount\nz,9\nb,2\nb,2\nc,3\nd,4\ne,0.5\n", pipeline=guard)
+    case, verdict = run_heal(toy.settings, INC, agent_fn=dedupe_agent)
+    v = json.loads((case.root / "validation.json").read_text())
+    assert verdict == V.FAILED
+    assert "validate:min_amount_ge_1" in v["unresolved_targets"]
+    assert "validate:min_amount_ge_1" not in v["scope_artifacts"]
+
+
+def test_reduced_content_helper(tmp_path):
+    from healing.heal import _reduced_content
+    c = tmp_path / "a.csv"; c.write_text("h1,h2\n1,2\n3,4\n")
+    assert _reduced_content(c) == "h1,h2\n1,2\n"
+    e = tmp_path / "b.csv"; e.write_text("h1,h2\n")
+    assert _reduced_content(e) is None
+    j = tmp_path / "c.json"; j.write_text("[{\"a\":1},{\"a\":2}]")
+    assert _reduced_content(j) == '[{"a": 1}]\n'
+    assert _reduced_content(tmp_path / "x.xlsx") is None

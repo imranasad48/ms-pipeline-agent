@@ -1,0 +1,1 @@
+{"decision": "FIX", "root_cause": "The CRM export re-sent 3 identical order lines (SO-20261103-0049 L2-L4) in sales_orders_2026-11-03.csv, which inflated line counts and order totals; the pipeline now drops exact copies and fails on conflicting copies.", "attempts": 1, "files_changed": ["dags/delivery_performance/pipeline.py"]}

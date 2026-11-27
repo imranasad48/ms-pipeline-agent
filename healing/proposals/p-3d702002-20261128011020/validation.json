@@ -1,0 +1,230 @@
+{
+ "verdict": "FAILED_VALIDATION",
+ "target_keys": [
+  "validate:all_events_accounted",
+  "validate:event_orders_exist_in_crm",
+  "validate:line_count_reconciles"
+ ],
+ "target_resolved": false,
+ "unresolved_targets": [
+  "validate:all_events_accounted",
+  "validate:event_orders_exist_in_crm"
+ ],
+ "regressions": [],
+ "unmasked_failures": [],
+ "scope_artifacts": [
+  "step:validate"
+ ],
+ "rows": [
+  [
+   "detect:crm_sales_orders_csv:duplicates.row",
+   "fail",
+   "fail",
+   "source file still dirty (expected: code-only fix)"
+  ],
+  [
+   "policy:manifest_versioned",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "step:extract_orders",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "step:extract_shipments",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "step:load",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "step:transform",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "step:validate",
+   "fail",
+   "fail",
+   "scope artifact (also fails without the incident's files)"
+  ],
+  [
+   "validate:accepted_values_is_late",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "validate:accepted_values_latest_status",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "validate:all_events_accounted",
+   "fail",
+   "fail",
+   "TARGET"
+  ],
+  [
+   "validate:customer_id_consistent_across_sources",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "validate:delivered_at_iff_delivered",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "validate:event_id_unique_in_source",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "validate:event_orders_exist_in_crm",
+   "fail",
+   "fail",
+   "TARGET"
+  ],
+  [
+   "validate:is_late_consistent",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "validate:line_count_reconciles",
+   "fail",
+   "pass",
+   "TARGET"
+  ],
+  [
+   "validate:no_shipment_means_no_events",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "validate:not_null_required",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "validate:order_total_reconciles",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "validate:pickup_before_delivery",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "validate:pk_unique_order_id",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "validate:promised_date_matches_requested",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "validate:row_count_equals_crm_orders",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "validate:schema_columns_present",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "validate:shipment_fields_complete",
+   "pass",
+   "pass",
+   ""
+  ]
+ ],
+ "before": {
+  "step:extract_orders": "pass",
+  "step:extract_shipments": "pass",
+  "step:load": "pass",
+  "step:transform": "pass",
+  "step:validate": "fail",
+  "validate:accepted_values_is_late": "pass",
+  "validate:accepted_values_latest_status": "pass",
+  "validate:all_events_accounted": "fail",
+  "validate:customer_id_consistent_across_sources": "pass",
+  "validate:delivered_at_iff_delivered": "pass",
+  "validate:event_id_unique_in_source": "pass",
+  "validate:event_orders_exist_in_crm": "fail",
+  "validate:is_late_consistent": "pass",
+  "validate:line_count_reconciles": "fail",
+  "validate:no_shipment_means_no_events": "pass",
+  "validate:not_null_required": "pass",
+  "validate:order_total_reconciles": "pass",
+  "validate:pickup_before_delivery": "pass",
+  "validate:pk_unique_order_id": "pass",
+  "validate:promised_date_matches_requested": "pass",
+  "validate:row_count_equals_crm_orders": "pass",
+  "validate:schema_columns_present": "pass",
+  "validate:shipment_fields_complete": "pass",
+  "detect:crm_sales_orders_csv:duplicates.row": "fail",
+  "policy:manifest_versioned": "pass"
+ },
+ "after": {
+  "step:extract_orders": "pass",
+  "step:extract_shipments": "pass",
+  "step:load": "pass",
+  "step:transform": "pass",
+  "step:validate": "fail",
+  "validate:accepted_values_is_late": "pass",
+  "validate:accepted_values_latest_status": "pass",
+  "validate:all_events_accounted": "fail",
+  "validate:customer_id_consistent_across_sources": "pass",
+  "validate:delivered_at_iff_delivered": "pass",
+  "validate:event_id_unique_in_source": "pass",
+  "validate:event_orders_exist_in_crm": "fail",
+  "validate:is_late_consistent": "pass",
+  "validate:line_count_reconciles": "pass",
+  "validate:no_shipment_means_no_events": "pass",
+  "validate:not_null_required": "pass",
+  "validate:order_total_reconciles": "pass",
+  "validate:pickup_before_delivery": "pass",
+  "validate:pk_unique_order_id": "pass",
+  "validate:promised_date_matches_requested": "pass",
+  "validate:row_count_equals_crm_orders": "pass",
+  "validate:schema_columns_present": "pass",
+  "validate:shipment_fields_complete": "pass",
+  "detect:crm_sales_orders_csv:duplicates.row": "fail",
+  "policy:manifest_versioned": "pass"
+ },
+ "errors_after": {
+  "step:validate": "AssertionError: Validation failed: ['event_orders_exist_in_crm', 'all_events_accounted']  (at pipeline.py:349)"
+ },
+ "errors_before": {
+  "step:validate": "AssertionError: Validation failed: ['event_orders_exist_in_crm', 'all_events_accounted', 'line_count_reconciles']  (at pipeline.py:346)"
+ }
+}

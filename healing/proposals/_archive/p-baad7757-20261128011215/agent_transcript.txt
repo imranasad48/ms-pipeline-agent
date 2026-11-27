@@ -1,0 +1,23 @@
+  [tool] Bash: {'command': 'cat case/incident.json case/baseline.json case/scope.json; ls -R case | head -50; cat dags/crm_sa
+  [tool] Bash: {'command': 'cd case/raw_files/crm; head -1 sales_orders_2026-11-03.csv; grep -n "SO-20261103-0049" sales_orde
+  [tool] Edit: {'replace_all': False, 'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/hea
+  [tool] Edit: {'replace_all': False, 'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/hea
+  [tool] Bash: {'command': 'cd /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/healing/proposals/p-baad
+Everything passes on the first attempt. Next I'll write the outputs.
+  [tool] Bash: {'command': 'cat > agent_out/diagnosis.md <<\'EOF\'\n# Incident inc_baad7757bea19f87 — crm_sales_orders, 2026-
+I patched the staged pipeline to drop exact duplicate rows, and the self-test passed on the first attempt: all steps and all 15 validation checks pass, with 127 rows loaded.
+
+**What went wrong:** The 2026-11-03 sales orders file has three extra rows. They are exact copies of lines L2, L3 and L4 of order SO-20261103-0049, with every column identical. The source sent the same lines twice. Because the copies reuse the same `order_line_id`, the unpatched run failed at `load` with a primary-key error.
+
+**Why FIX, not ESCALATE:** These are repeated copies of the same lines, not new or conflicting order lines. Removing them doesn't change what the data means: order 0049 still has its four lines, each once.
+
+**The patch** (in `dags/crm_sales_orders/pipeline.py`, `extract()` only):
+- Each file now drops rows that are identical in every source column before it is staged.
+- The number of rows dropped is printed and recorded in the extract stats as `exact_duplicates_dropped`.
+- The row counts that validation compares against are taken after this step, so they don't include the copies.
+- Rows that share a key but differ in any value are kept. They will still fail the primary-key check and both uniqueness checks, so a real conflict will still stop the run.
+- No validation check was changed, and the manifest is untouched because the data contract is the same.
+
+I wrote the explanation for the reviewer to `agent_out/diagnosis.md` and the decision to `agent_out/decision.json`.
+
+DECISION: FIX

@@ -1,0 +1,22 @@
+  [tool] Bash: {'command': 'cat case/incident.json case/baseline.json case/scope.json; ls -R case/raw_files case/data_root | 
+  [tool] Bash: {'command': 'cat -n dags/crm_sales_orders/pipeline.py; cat manifests/crm_sales_orders.yaml; f=case/raw_files/c
+  [tool] Edit: {'replace_all': False, 'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/hea
+  [tool] Bash: {'command': 'python3 - <<\'EOF\'\np=\'dags/crm_sales_orders/pipeline.py\'\ns=open(p).read()\ns=s.replace(\'   
+All checks pass on the first attempt. Writing outputs.
+  [tool] Bash: {'command': 'sed -n 86,115p dags/crm_sales_orders/pipeline.py && cat > agent_out/diagnosis.md <<\'EOF\'\n# Inc
+I've patched the staged pipeline so it drops rows that are exact duplicates, and the self-test passed on the first attempt: all 4 steps and all 15 validation checks.
+
+**What went wrong:** the 2026-11-03 sales orders file has 130 rows, and the last 3 are exact copies of order SO-20261103-0049 lines L2, L3 and L4. Every column matches, including timestamp, quantity, price and total. That broke the `order_line_id` primary key when loading. The other incident that day (`order_id+line_no` duplicates) has the same cause.
+
+**Why FIX:** the copies are identical in every column, so removing them changes no business meaning. The order still has its four real lines, L1–L4. This looks like a re-sent block from the CRM export, not new orders.
+
+**What I changed (staged `dags/crm_sales_orders/pipeline.py`, extract step only):**
+- **What gets dropped:** after the column check, rows identical in every column within a file are removed, keeping the first copy.
+- **Real conflicts still fail:** rows that share a key but differ in any value are left in, so they still fail the key constraint and the uniqueness checks.
+- **Audit trail:** the number of rows dropped per file is printed and recorded as `exact_duplicates_dropped` in the extract stats.
+- **Row counts:** the row-count checks now compare against the counts after duplicates are removed. This date loads 127 rows (130 minus 3).
+- **Untouched:** I didn't change any validation checks or the manifest.
+
+The diagnosis and decision are in `agent_out/diagnosis.md` and `agent_out/decision.json`. Someone should still ask the CRM export owner why order 0049's lines were sent twice.
+
+DECISION: FIX

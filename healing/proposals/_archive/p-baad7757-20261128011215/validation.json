@@ -1,0 +1,182 @@
+{
+ "verdict": "READY_FOR_APPROVAL",
+ "target_keys": [
+  "step:load"
+ ],
+ "target_resolved": true,
+ "unresolved_targets": [],
+ "regressions": [],
+ "unmasked_failures": [],
+ "scope_artifacts": [],
+ "rows": [
+  [
+   "detect:crm_sales_orders_csv:duplicates.key:order_id+line_no",
+   "fail",
+   "fail",
+   "source file still dirty (expected: code-only fix)"
+  ],
+  [
+   "detect:crm_sales_orders_csv:duplicates.key:order_line_id",
+   "fail",
+   "fail",
+   "source file still dirty (expected: code-only fix)"
+  ],
+  [
+   "policy:manifest_versioned",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "step:extract",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "step:load",
+   "fail",
+   "pass",
+   "TARGET"
+  ],
+  [
+   "step:transform",
+   "pass",
+   "pass",
+   ""
+  ],
+  [
+   "step:validate",
+   "skipped",
+   "pass",
+   ""
+  ],
+  [
+   "validate:accepted_values_channel",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:accepted_values_currency",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:accepted_values_order_status",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:accepted_values_priority",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:line_total_consistent",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:not_null_required",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:order_date_matches_file",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:pk_unique_order_line_id",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:range_discount_pct",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:range_quantity_positive",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:range_unit_price_positive",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:row_count_match",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:row_count_per_file",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:schema_columns_present",
+   "-",
+   "pass",
+   ""
+  ],
+  [
+   "validate:unique_order_id_line_no",
+   "-",
+   "pass",
+   ""
+  ]
+ ],
+ "before": {
+  "step:extract": "pass",
+  "step:load": "fail",
+  "step:transform": "pass",
+  "step:validate": "skipped",
+  "detect:crm_sales_orders_csv:duplicates.key:order_line_id": "fail",
+  "detect:crm_sales_orders_csv:duplicates.key:order_id+line_no": "fail",
+  "policy:manifest_versioned": "pass"
+ },
+ "after": {
+  "step:extract": "pass",
+  "step:load": "pass",
+  "step:transform": "pass",
+  "step:validate": "pass",
+  "validate:accepted_values_channel": "pass",
+  "validate:accepted_values_currency": "pass",
+  "validate:accepted_values_order_status": "pass",
+  "validate:accepted_values_priority": "pass",
+  "validate:line_total_consistent": "pass",
+  "validate:not_null_required": "pass",
+  "validate:order_date_matches_file": "pass",
+  "validate:pk_unique_order_line_id": "pass",
+  "validate:range_discount_pct": "pass",
+  "validate:range_quantity_positive": "pass",
+  "validate:range_unit_price_positive": "pass",
+  "validate:row_count_match": "pass",
+  "validate:row_count_per_file": "pass",
+  "validate:schema_columns_present": "pass",
+  "validate:unique_order_id_line_no": "pass",
+  "detect:crm_sales_orders_csv:duplicates.key:order_line_id": "fail",
+  "detect:crm_sales_orders_csv:duplicates.key:order_id+line_no": "fail",
+  "policy:manifest_versioned": "pass"
+ },
+ "errors_after": {},
+ "errors_before": {
+  "step:load": "IntegrityError: UNIQUE constraint failed: sales_orders__new.order_line_id  (at pipeline.py:145)"
+ }
+}

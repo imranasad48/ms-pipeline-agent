@@ -43,6 +43,36 @@ def _emptied_content(path) -> str | None:
     return _EMPTY_BY_SUFFIX.get(path.suffix)
 
 
+def _reduced_content(path) -> str | None:
+    """Smallest NON-empty stand-in for ``path``: header + first record (CSV), first line (JSONL),
+    first element (JSON list). None if the format is unknown or there is no record to keep."""
+    import csv
+    import io
+    if path.suffix == ".csv":
+        with open(path, newline="") as fh:
+            rows = [r for _, r in zip(range(2), csv.reader(fh))]
+        if len(rows) < 2:
+            return None
+        buf = io.StringIO()
+        csv.writer(buf, lineterminator="\n").writerows(rows)
+        return buf.getvalue()
+    if path.suffix in (".jsonl", ".ndjson"):
+        first = next((ln for ln in path.read_text().splitlines() if ln.strip()), None)
+        return None if first is None else first + "\n"
+    if path.suffix == ".json":
+        try:
+            data = json.loads(path.read_text())
+        except ValueError:
+            return None
+        return json.dumps(data[:1]) + "\n" if isinstance(data, list) and data else None
+    return None
+
+
+def _has_check_level_evidence(ctl: dict) -> bool:
+    """False when validate crashed before printing any per-check result (``validate:(unparsed)``)."""
+    return "validate:(unparsed)" not in ctl["results"]
+
+
 def _control_cannot_run(baseline_res: dict, ctl: dict) -> bool:
     """True when the control failed a step the baseline PASSED: its input is gone."""
     return any(k.startswith("step:") and v == FAIL and baseline_res.get(k) == PASS
@@ -88,6 +118,29 @@ def run_baseline(settings: Settings, case: Case) -> dict:
                                 emptied, case.work, "control_emptied")
             if not _control_cannot_run(res["results"], ctl2):
                 ctl, control_mode = ctl2, "emptied_source"
+                if not _has_check_level_evidence(ctl2):
+                    # An empty source can crash the pipeline's own validate (e.g. NULL sums) before
+                    # any check reports, leaving no check-level evidence. Retry with the smallest
+                    # non-empty slice (header + first record); keep the emptied control otherwise.
+                    reduced = case.work / "control_reduced_root"
+                    shutil.rmtree(reduced, ignore_errors=True)
+                    shutil.copytree(case.scoped_root, reduced)
+                    contents = {}
+                    for f in json.loads(case.incident["affected_files_json"]):
+                        t = reduced / f.split("#", 1)[0]
+                        c = _reduced_content(t) if t.exists() else None
+                        if c is None:
+                            contents = None
+                            break
+                        contents[t] = c
+                    if contents:
+                        for t, c in contents.items():
+                            t.write_text(c)
+                        ctl3 = run_pipeline(settings, case.originals, case.pipeline_id, case.steps,
+                                            reduced, case.work, "control_reduced")
+                        if (not _control_cannot_run(res["results"], ctl3)
+                                and _has_check_level_evidence(ctl3)):
+                            ctl, control_mode = ctl3, "reduced_source"
     baseline = {"pipeline": res["results"], "errors": res["errors"],
                 "detection_failing": sorted(det),
                 "control": ctl["results"], "control_mode": control_mode,
@@ -114,7 +167,7 @@ def run_validation(settings: Settings, case: Case, baseline: dict) -> dict:
     before["policy:manifest_versioned"], after["policy:manifest_versioned"] = PASS, pol_status
     targets = select_targets(before, f"detect:{det_key}")
     d = decide(before, after, targets, baseline.get("scope_artifacts", []),
-               excuse_targets=baseline.get("control_mode") == "emptied_source")
+               excuse_targets=baseline.get("control_mode") in ("emptied_source", "reduced_source"))
     if pol_status != PASS:
         d["verdict"] = FAILED
         d["regressions"] = sorted(d["regressions"] + ["policy:manifest_versioned"])
