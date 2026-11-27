@@ -1,0 +1,21 @@
+  [tool] Bash: {'command': 'cat case/incident.json case/baseline.json case/scope.json; ls -R case/raw_files case/data_root | 
+  [tool] Bash: {'command': 'cat dags/crm_sales_orders/pipeline.py; cat manifests/crm_sales_orders.yaml; f=case/raw_files/crm/
+  [tool] Edit: {'replace_all': False, 'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/hea
+  [tool] Bash: {'command': 'mkdir -p agent_out; /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/.venv/bin/python /User
+The self-test passed on the first try. Now I'll write the outputs.
+  [tool] Bash: {'command': 'cat > agent_out/diagnosis.md <<\'EOF\'\n# Incident inc_0e86fb7397df1bac — crm_sales_orders, 2026-
+I patched the pipeline to drop exact duplicate rows. The self-test passed on the first attempt: all four steps and all 15 validation checks.
+
+**What went wrong:** the 2026-11-04 CRM export wrote the 3 lines of order SO-20261104-0052 (L1–L3) twice. The copies at the end of the file (lines 141–143) match the originals on lines 138–140 in every column, including IDs, timestamps, quantities, prices and totals. That is why the unpatched load failed with a UNIQUE constraint error on `order_line_id`. The same fix covers the same-day incident on the `order_line_id` key.
+
+**Why FIX and not escalate:** the copies are exact, so this is an export defect, not a second order. Dropping them loses no information and hides nothing real.
+
+**The change:** one edit in the staged `dags/crm_sales_orders/pipeline.py`, inside `extract()`.
+- For each file, rows identical to an earlier row in every column are dropped (the first copy is kept) and the count is logged.
+- Row counts are taken after this step, so the row-count checks compare the table with the de-duplicated source.
+- Rows that share a key but have different values are left alone. They would still fail the load and the uniqueness checks, which is the case that should go to a person.
+- No validation checks were changed, and the manifest is unchanged because the contract is the same.
+
+The diagnosis is in `agent_out/diagnosis.md`, the decision record in `agent_out/decision.json`, and the test output in `agent_out/selftest.json`.
+
+DECISION: FIX

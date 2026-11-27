@@ -1,0 +1,22 @@
+  [tool] Bash: {'command': 'cat case/incident.json case/baseline.json case/scope.json; ls -R case/raw_files case/data_root | 
+  [tool] Bash: {'command': 'cat dags/delivery_performance/pipeline.py; cat manifests/delivery_performance.yaml; head -3 case/
+  [tool] Bash: {'command': 'python3 - <<\'EOF\'\np=\'dags/delivery_performance/pipeline.py\'\ns=open(p).read()\nold=\'\'\'   
+  [tool] Bash: {'command': 'cat agent_out/selftest.json'}
+`line_count_reconciles` passes now. The only two checks still failing are the listed scope artifacts, and they fail in the control run too because of the one-day data slice. Writing the outputs.
+  [tool] Bash: {'command': 'cat > agent_out/diagnosis.md <<\'EOF\'\n# Incident inc_bc9715657fa040ae — delivery_performance, 2
+I patched the staged `dags/delivery_performance/pipeline.py`, and the problem check now passes. The self-test passed on the first attempt, apart from two checks the case says to ignore.
+
+**Root cause:** `crm/sales_orders_2026-11-04.csv` contains the three lines of order SO-20261104-0052 (L1–L3) twice. The second copy matches the first in every field. That made the `line_count_reconciles` check fail. It also doubled that order's `order_total` by 406,113.45 PKR, which the order-total check didn't catch because both sides of its comparison included the extra rows.
+
+**Why it's a FIX:** the extra rows are exact copies of real lines, so removing them loses nothing and changes nothing the data means. There's only one correct answer, so it doesn't need a business decision.
+
+**The change**, in `extract_orders`:
+- After the CRM files are combined, rows that are identical in every column except `source_file` are dropped, keeping the first copy. The number dropped is logged and saved as `duplicate_rows_dropped` in the step's stats.
+- If the same `order_line_id` still appears more than once after that, the copies differ in content. The step stops with an error rather than guessing which copy is right.
+- Clean files behave exactly as before. I didn't change any validation checks or the manifest.
+
+**Self-test:** all steps passed and `line_count_reconciles` now passes. Two checks still fail, `event_orders_exist_in_crm` and `all_events_accounted`. They are the listed scope artifacts and fail the same way in the control run without this incident's file, so the partial data slice causes them, not this incident or the patch.
+
+The same-day `order_id+line_no` incident has the same cause, so this patch covers it too. I wrote `agent_out/diagnosis.md` and `agent_out/decision.json`.
+
+DECISION: FIX

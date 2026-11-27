@@ -1,0 +1,31 @@
+  [tool] Bash: {'command': 'cat case/incident.json case/baseline.json case/scope.json; ls -R case/raw_files case/data_root | 
+  [tool] Bash: {'command': 'cat dags/delivery_performance/pipeline.py; cat manifests/delivery_performance.yaml; f=case/raw_fi
+  [tool] Edit: {'replace_all': False, 'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/hea
+  [tool] Bash: {'command': 'mkdir -p agent_out; /Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/.venv/bin/python /User
+line_count_reconciles passes now. The only remaining failures are the known scope artifacts, and they fail in the control run too. Writing the outputs.
+  [tool] Bash: {'command': 'cat > agent_out/diagnosis.md <<\'EOF\'\n# inc_296c944a6c7abd1d — delivery_performance, 2026-11-04
+I patched the staged pipeline to drop exact duplicate order lines, and the self-test passed on the first attempt apart from two checks that also fail without this incident's file.
+
+**What went wrong:** In `crm/sales_orders_2026-11-04.csv`, the three lines of order SO-20261104-0052 (L1–L3) appear twice, identical in every column. The repeat is at rows 141–143. Without the fix:
+- `line_count_reconciles` fails: the CRM file has 6 rows for that order, but it only has 3 distinct line IDs.
+- That order's `total_quantity` and `order_total` are doubled, and no check catches it. `order_total_reconciles` still passes because the CRM-side total it compares against includes the same duplicates.
+
+**Why FIX:** These are true duplicates with no conflicting values. The order means the same thing; it was just delivered twice.
+
+**The change:** One edit, in `extract_orders` in `dags/delivery_performance/pipeline.py`:
+- After the CRM files are combined, rows that are identical across all contract columns are dropped.
+- If two rows share an `order_line_id`, or the same `order_id` + `line_no`, but their content differs, the step stops with an error rather than picking one. Real conflicts still reach a person.
+- The number of dropped duplicates is printed and saved in the run stats.
+
+I didn't touch any validation checks or the manifest.
+
+**Self-test:** All steps through `load` pass, and `line_count_reconciles` now passes. The only failures are `event_orders_exist_in_crm` and `all_events_accounted`. Both are listed as scope artifacts and fail the same way in the control run. They come from the partial data slice, not from this incident.
+
+The same-day incident inc_bc9715657fa040ae (duplicates on `order_line_id`) has the same cause, and this patch covers it too.
+
+Files are in `agent_out/`:
+- `diagnosis.md`
+- `decision.json`
+- `selftest.json`
+
+DECISION: FIX

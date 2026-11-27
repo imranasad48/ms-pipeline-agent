@@ -1,0 +1,22 @@
+  [tool] Bash: {'command': 'cd case; cat incident.json baseline.json scope.json; ls -la raw_files data_root; find data_root |
+  [tool] Bash: {'command': 'cd ..; cat dags/crm_sales_orders/pipeline.py; cat manifests/crm_sales_orders.yaml; f=case/raw_fil
+  [tool] Edit: {'replace_all': False, 'file_path': '/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/hea
+  [tool] Bash: {'command': 'python3 - <<\'EOF\'\np=\'dags/crm_sales_orders/pipeline.py\'\ns=open(p).read()\ns=s.replace(\'   
+All checks pass on the first attempt. Writing outputs.
+  [tool] Bash: {'command': 'mkdir -p agent_out && cat > agent_out/diagnosis.md <<\'EOF\'\n# Incident inc_c7dd92259d08f902 — c
+I patched the staged pipeline to drop exact duplicate rows, and the self-test passed on the first attempt: all four steps and all 15 validation checks.
+
+**What happened:** In the 2026-11-04 sales orders file, the last three rows (file lines 141–143) are exact copies of lines 138–140. Those are the three lines of order `SO-20261104-0052`, and every field matches, including timestamps, prices and totals. It looks like the export sent the same rows twice. The unpatched pipeline's load step failed with a UNIQUE constraint error on `order_line_id`, so validation never ran. The other incident for that day (`duplicates.key:order_id+line_no`) has the same cause.
+
+**Why FIX:** Removing exact copies doesn't change the data's meaning: it is still one order with three lines. If the copies had differed in any value, picking the right one would be a business decision, and I would have escalated instead.
+
+**The change** is in `extract` in `dags/crm_sales_orders/pipeline.py`:
+- Within each file, rows that exactly match an earlier row are dropped and the first copy is kept.
+- The number dropped is printed and saved in the extract stats as `exact_duplicates_dropped`.
+- Rows that share a key but differ in any value are left alone, so they still fail the primary key and both uniqueness checks.
+
+I didn't change any validation check or the manifest. The row-count checks now compare the table against the row count after duplicates are dropped. The extra copies are recorded in `exact_duplicates_dropped` rather than counted.
+
+The diagnosis is in `agent_out/diagnosis.md`, the decision in `agent_out/decision.json`, and the self-test results in `agent_out/selftest.json`.
+
+DECISION: FIX

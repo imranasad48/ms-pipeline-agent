@@ -1,0 +1,24 @@
+{
+ "errors": {},
+ "results": {
+  "step:extract": "pass",
+  "step:load": "pass",
+  "step:transform": "pass",
+  "step:validate": "pass",
+  "validate:accepted_values_channel": "pass",
+  "validate:accepted_values_currency": "pass",
+  "validate:accepted_values_order_status": "pass",
+  "validate:accepted_values_priority": "pass",
+  "validate:line_total_consistent": "pass",
+  "validate:not_null_required": "pass",
+  "validate:order_date_matches_file": "pass",
+  "validate:pk_unique_order_line_id": "pass",
+  "validate:range_discount_pct": "pass",
+  "validate:range_quantity_positive": "pass",
+  "validate:range_unit_price_positive": "pass",
+  "validate:row_count_match": "pass",
+  "validate:row_count_per_file": "pass",
+  "validate:schema_columns_present": "pass",
+  "validate:unique_order_id_line_no": "pass"
+ }
+}

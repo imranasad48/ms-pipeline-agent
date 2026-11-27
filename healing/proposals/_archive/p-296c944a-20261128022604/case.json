@@ -1,0 +1,57 @@
+{
+ "proposal_id": "p-296c944a-20261128022604",
+ "incident_id": "inc_296c944a6c7abd1d",
+ "pipeline_id": "delivery_performance",
+ "business_date": "2026-11-04",
+ "steps": [
+  "extract_orders",
+  "extract_shipments",
+  "transform",
+  "load",
+  "validate"
+ ],
+ "live_files": [
+  "dags/delivery_performance/__init__.py",
+  "dags/delivery_performance/pipeline.py",
+  "manifests/delivery_performance.yaml"
+ ],
+ "original_sha256": {
+  "dags/delivery_performance/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "dags/delivery_performance/pipeline.py": "bd8add25cbaf60431603a78af32d5d08e4c9ea3eff304fd99888823764685675",
+  "manifests/delivery_performance.yaml": "09f2221122804b87bbd4af96e0f2c5c34ff6607af59c46f4a2954c80dafac8c3"
+ },
+ "data_root": "/Users/imranasad48/Desktop/IBA/5th_Semester/MS_Project/pipeline-agent/demo_root",
+ "scope": {
+  "business_date": "2026-11-04",
+  "files_copied": 25,
+  "copied": [
+   "3pl/shipment_events_2026-11-04T00.json",
+   "3pl/shipment_events_2026-11-04T01.json",
+   "3pl/shipment_events_2026-11-04T02.json",
+   "3pl/shipment_events_2026-11-04T03.json",
+   "3pl/shipment_events_2026-11-04T04.json",
+   "3pl/shipment_events_2026-11-04T05.json",
+   "3pl/shipment_events_2026-11-04T06.json",
+   "3pl/shipment_events_2026-11-04T07.json",
+   "3pl/shipment_events_2026-11-04T08.json",
+   "3pl/shipment_events_2026-11-04T09.json",
+   "3pl/shipment_events_2026-11-04T10.json",
+   "3pl/shipment_events_2026-11-04T11.json",
+   "3pl/shipment_events_2026-11-04T12.json",
+   "3pl/shipment_events_2026-11-04T13.json",
+   "3pl/shipment_events_2026-11-04T14.json",
+   "3pl/shipment_events_2026-11-04T15.json",
+   "3pl/shipment_events_2026-11-04T16.json",
+   "3pl/shipment_events_2026-11-04T17.json",
+   "3pl/shipment_events_2026-11-04T18.json",
+   "3pl/shipment_events_2026-11-04T19.json",
+   "3pl/shipment_events_2026-11-04T20.json",
+   "3pl/shipment_events_2026-11-04T21.json",
+   "3pl/shipment_events_2026-11-04T22.json",
+   "3pl/shipment_events_2026-11-04T23.json",
+   "crm/sales_orders_2026-11-04.csv"
+  ],
+  "quarantined": []
+ },
+ "created_at": "2026-11-28T02:26:04"
+}

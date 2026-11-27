@@ -1,0 +1,1 @@
+{"decision": "FIX", "root_cause": "The 2026-11-04 sales orders CSV contains byte-identical duplicate copies of the three lines of order SO-20261104-0052 (re-delivered rows), violating the order_line_id primary key at load.", "attempts": 1, "files_changed": ["dags/crm_sales_orders/pipeline.py"]}

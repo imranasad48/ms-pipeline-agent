@@ -1,0 +1,1 @@
+{"decision": "FIX", "root_cause": "The CRM sales_orders file for 2026-11-04 contains an exact verbatim duplicate of the three lines of order SO-20261104-0052, which inflated line totals and broke line-count reconciliation.", "attempts": 1, "files_changed": ["dags/delivery_performance/pipeline.py"]}

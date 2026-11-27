@@ -1,0 +1,1 @@
+{"decision": "FIX", "root_cause": "The CRM sales_orders file for 2026-11-04 re-emitted the 3 lines of order SO-20261104-0052 as exact duplicate rows, inflating line counts and the order total; the extract step now drops exact duplicate rows and fails on conflicting duplicates.", "attempts": 1, "files_changed": ["dags/delivery_performance/pipeline.py"]}

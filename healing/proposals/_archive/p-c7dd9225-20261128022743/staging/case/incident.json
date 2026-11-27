@@ -1,0 +1,30 @@
+{
+ "incident_id": "inc_c7dd92259d08f902",
+ "detected_at": "2026-11-27T21:25:22+00:00",
+ "business_date": "2026-11-04",
+ "pipeline_id": "crm_sales_orders",
+ "source_id": "crm_sales_orders_csv",
+ "check_id": "duplicates.key:order_line_id",
+ "check_family": "duplicates",
+ "severity": "critical",
+ "expected_json": "{\"max_duplicate_keys\": 0}",
+ "observed_json": "{\"files_affected\": 1, \"per_file\": {\"crm/sales_orders_2026-11-04.csv\": {\"duplicate_keys\": 3, \"examples\": [\"('SO-20261104-0052-L1',)\", \"('SO-20261104-0052-L2',)\", \"('SO-20261104-0052-L3',)\"], \"extra_copies\": 3}}}",
+ "affected_files_json": "[\"crm/sales_orders_2026-11-04.csv\"]",
+ "status": "open",
+ "same_day": [
+  {
+   "incident_id": "inc_0e86fb7397df1bac",
+   "detected_at": "2026-11-27T21:25:22+00:00",
+   "business_date": "2026-11-04",
+   "pipeline_id": "crm_sales_orders",
+   "source_id": "crm_sales_orders_csv",
+   "check_id": "duplicates.key:order_id+line_no",
+   "check_family": "duplicates",
+   "severity": "critical",
+   "expected_json": "{\"max_duplicate_keys\": 0}",
+   "observed_json": "{\"files_affected\": 1, \"per_file\": {\"crm/sales_orders_2026-11-04.csv\": {\"duplicate_keys\": 3, \"examples\": [\"('SO-20261104-0052', '1')\", \"('SO-20261104-0052', '2')\", \"('SO-20261104-0052', '3')\"], \"extra_copies\": 3}}}",
+   "affected_files_json": "[\"crm/sales_orders_2026-11-04.csv\"]",
+   "status": "open"
+  }
+ ]
+}
