@@ -27,6 +27,13 @@ class SourceSpec:
     range_bounds: dict = field(default_factory=dict, hash=False)  # col -> (min, max) hard bounds
     sheet: str | None = None       # expected worksheet name (xlsx), from observed.layout
     header_row: int | None = None  # expected 1-based header row (xlsx), from observed.layout
+    # How each period's file relates to the previous one (manifest `delivery`, default incremental):
+    #   incremental - every period carries new records; a file equal to the previous one is stale.
+    #   snapshot    - every period re-delivers the full current state (e.g. a customer master), so
+    #                 equality with the previous period is normal; stale = unchanged for more than
+    #                 `max_unchanged_periods` consecutive periods (required for snapshot sources).
+    delivery: str = "incremental"
+    max_unchanged_periods: int | None = None
 
     @property
     def fingerprint(self) -> str:
@@ -35,7 +42,10 @@ class SourceSpec:
                            list(self.expected_schema.items()),
                            sorted(self.key_columns), self.formats,
                            [list(k) for k in self.unique_keys],
-                           sorted(self.range_bounds.items(), key=str)], sort_keys=True)
+                           sorted(self.range_bounds.items(), key=str)]
+                          # non-default delivery only, so existing fingerprints are unchanged
+                          + ([self.delivery, self.max_unchanged_periods]
+                             if self.delivery != "incremental" else []), sort_keys=True)
         return hashlib.sha1(blob.encode()).hexdigest()[:12]
 
 
@@ -108,12 +118,28 @@ def _range_bounds(raw_source: dict, manifest: dict) -> dict:
     return out
 
 
+DELIVERY_KINDS = ("incremental", "snapshot")
+
+
+def _delivery(raw_source: dict, path) -> tuple[str, int | None]:
+    kind = raw_source.get("delivery", "incremental")
+    if kind not in DELIVERY_KINDS:
+        raise ValueError(f"{path}: source {raw_source['id']!r}: delivery must be one of "
+                         f"{', '.join(DELIVERY_KINDS)}, not {kind!r}")
+    n = raw_source.get("max_unchanged_periods")
+    if kind == "snapshot" and (not isinstance(n, int) or isinstance(n, bool) or n < 0):
+        raise ValueError(f"{path}: source {raw_source['id']!r}: delivery: snapshot needs "
+                         "max_unchanged_periods (a non-negative integer)")
+    return kind, (n if kind == "snapshot" else None)
+
+
 def load_manifest(path: Path, cfg: dict) -> Manifest:
     """Parse one manifest YAML file."""
     raw = yaml.safe_load(Path(path).read_text())
     sources = []
     for s in raw.get("sources", []):
         obs = s.get("observed", {})
+        delivery, max_unchanged = _delivery(s, path)
         sources.append(SourceSpec(
             source_id=s["id"], format=s["format"], path_pattern=s["path_pattern"],
             expected_schema=dict(s.get("expected_schema", {})),
@@ -127,6 +153,7 @@ def load_manifest(path: Path, cfg: dict) -> Manifest:
             sheet=(re.search(r"sheet '([^']+)'", obs.get("layout", "")) or [None, None])[1],
             header_row=(int(m.group(1)) if (m := re.search(r"header on row (\d+)",
                                                             obs.get("layout", ""))) else None),
+            delivery=delivery, max_unchanged_periods=max_unchanged,
         ))
     dest = raw.get("destination", {})
     refs = tuple((c["params"]["child"], c["params"]["parent"])

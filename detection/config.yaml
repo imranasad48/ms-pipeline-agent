@@ -84,6 +84,11 @@ iot_behavior:
 
 run_health:
   max_load_lag_hours: 36         # table must have been loaded within this long of the day's end
+  # Airflow run state (detection/airflow_state.py). Written by the dashboard / `python -m dashboard
+  # airflow-snapshot`; env DETECTION_AIRFLOW_SNAPSHOT overrides the path. Older than the limit ->
+  # ignored (one log line, no incident).
+  airflow_snapshot: detection/airflow_runs.json
+  airflow_snapshot_max_age_hours: 6
 
 # Columns whose damage is worse than cosmetic (severity "key" below).
 key_columns:
@@ -114,6 +119,9 @@ severity:
   run_health.table_missing:  critical
   run_health.table_empty:    critical
   run_health.load_stale:     warn
+  run_health.airflow_run_failed: critical
+  run_health.dag_paused:     info
+  run_health.dag_never_run:  info
   schema.corrupt_line:       warn
   schema.sheet_renamed:      warn
   schema.header_row_shift:   warn

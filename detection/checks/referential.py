@@ -2,7 +2,10 @@
 
 Pairs come from the manifest (``referential_integrity``: child "3pl.sales_order_id", parent
 "crm.order_id") plus ``config.yaml -> referential.extra``. "3pl"/"crm" are the first directory
-of a source's path (the same name the calendar uses). For business date D the child side is
+of a source's path (the same name the calendar uses); a ref "crm.order_id" means every source in
+that directory whose contract has the column (a directory can hold several sources: the CRM
+order lines and the CRM customer master both live in crm/). Child side: each such source is
+checked. Parent side: the keys of all of them together, reliable only if each is reliable. For business date D the child side is
 D's files; the parent side is the parent's whole history up to D (a delayed shipment can
 reference an order placed many days earlier). The check is skipped for a day when the parent's
 recent files are missing or stale (freshness / stale checks already report those). ``known_values`` pairs a column
@@ -55,10 +58,12 @@ def _parent_keys(spec, col: str, business_date: dt.date, ctx: Context):
             ok, vals, h = _file_keys(spec, slot, col, ctx)
             keys |= vals
             started = started or ok
-            # a file absent *before the parent's history began* is not a gap (cold start)
+            # a file absent *before the parent's history began* is not a gap (cold start);
+            # a repeat of the previous period is a stale re-send, except for a snapshot source,
+            # which legitimately re-delivers the same state (its own stale check judges that)
             if back <= cfg["required_days"] and ((not ok and started)
                                                  or (not ok and slot.path.exists())
-                                                 or (h and h == prev_hash)):
+                                                 or (h and h == prev_hash and spec.delivery != "snapshot")):
                 reliable = False
             prev_hash = h if ok else None
     return keys, reliable
@@ -76,44 +81,69 @@ def referential_pairs(manifests, ctx: Context) -> list:
 def check_referential(manifests, business_date: dt.date, ctx: Context, profiles_of) -> dict:
     """Return {child source fingerprint: [Finding]}. ``profiles_of(spec)`` -> this date's profiles."""
     cfg = ctx.config["referential"]
-    by_dir = {}
+    by_dir: dict = {}
     for m in manifests:
         for s in m.sources:
-            by_dir.setdefault(source_dir(s), s)
+            group = by_dir.setdefault(source_dir(s), [])
+            if all(s.fingerprint != x.fingerprint for x in group):
+                group.append(s)
+
+    def having(d: str, col: str) -> list:
+        return [s for s in by_dir.get(d, []) if col in s.expected_schema]
+
     out: dict = defaultdict(list)
     for child_ref, parent_ref in referential_pairs(manifests, ctx):
         (cdir, ccol), (pdir, pcol) = _parse(child_ref), _parse(parent_ref)
-        child, parent = by_dir.get(cdir), by_dir.get(pdir)
-        if child is None or parent is None or ccol not in child.expected_schema:
+        parents = having(pdir, pcol)
+        if not parents:
             continue
-        profiles = [p for p in profiles_of(child) if p.readable and p.records]
-        if not profiles:
+        for child in having(cdir, ccol):
+            _check_pair(child, ccol, parents, pdir, pcol, business_date, ctx, profiles_of, cfg, out)
+    _check_known_values(manifests, ctx, profiles_of, cfg, out)
+    return out
+
+
+def _union_parent_keys(parents: list, col: str, business_date: dt.date, ctx: Context):
+    keys, reliable = set(), True
+    for spec in parents:
+        k, ok = _parent_keys(spec, col, business_date, ctx)
+        keys |= k
+        reliable = reliable and ok
+    return keys, reliable
+
+
+def _check_pair(child, ccol, parents, pdir, pcol, business_date, ctx, profiles_of, cfg, out) -> None:
+    profiles = [p for p in profiles_of(child) if p.readable and p.records]
+    if not profiles:
+        return
+    parent_keys = None
+    orphans = {}
+    for p in profiles:
+        ctx.stats.evaluate("referential.orphan")
+        vals = [r.get(ccol) for r in p.records if r.get(ccol) not in (None, "")]
+        if not vals:
             continue
-        parent_keys = None
-        orphans = {}
-        for p in profiles:
-            ctx.stats.evaluate("referential.orphan")
-            vals = [r.get(ccol) for r in p.records if r.get(ccol) not in (None, "")]
-            if not vals:
-                continue
-            if parent_keys is None:
-                parent_keys, reliable = _parent_keys(parent, pcol, business_date, ctx)
-                if not reliable:            # parent file missing/stale: cannot judge orphans
-                    ctx.stats.evaluate("referential.skipped_unreliable_parent")
-                    break
-            bad = [v for v in vals if v not in parent_keys]
-            ctx.stats.utilisation("referential.orphan", len(bad) / len(vals),
-                                  max(cfg["max_orphan_rate"], 1e-9))
-            if bad and len(bad) / len(vals) > cfg["max_orphan_rate"]:
-                orphans[p.rel] = {"orphans": len(bad), "of": len(vals),
-                                  "examples": sorted(set(map(str, bad)))[:3]}
-        if orphans:
-            out[child.fingerprint].append(emit(
-                ctx, child, "referential", f"referential.orphan:{ccol}->{pdir}.{pcol}",
-                "referential.orphan", ccol in child.key_columns,
-                {"child_keys_subset_of": f"{parent.source_id}.{pcol}",
-                 "parent_required_days": cfg["required_days"]}, orphans))
-    # known-value domains learned from clean data
+        if parent_keys is None:
+            parent_keys, reliable = _union_parent_keys(parents, pcol, business_date, ctx)
+            if not reliable:            # parent file missing/stale: cannot judge orphans
+                ctx.stats.evaluate("referential.skipped_unreliable_parent")
+                break
+        bad = [v for v in vals if v not in parent_keys]
+        ctx.stats.utilisation("referential.orphan", len(bad) / len(vals),
+                              max(cfg["max_orphan_rate"], 1e-9))
+        if bad and len(bad) / len(vals) > cfg["max_orphan_rate"]:
+            orphans[p.rel] = {"orphans": len(bad), "of": len(vals),
+                              "examples": sorted(set(map(str, bad)))[:3]}
+    if orphans:
+        out[child.fingerprint].append(emit(
+            ctx, child, "referential", f"referential.orphan:{ccol}->{pdir}.{pcol}",
+            "referential.orphan", ccol in child.key_columns,
+            {"child_keys_subset_of": "|".join(f"{x.source_id}.{pcol}" for x in parents),
+             "parent_required_days": cfg["required_days"]}, orphans))
+
+
+def _check_known_values(manifests, ctx: Context, profiles_of, cfg, out) -> None:
+    """known-value domains learned from clean data"""
     known = ctx.config["baselines"].get("known_values", {})
     seen = set()
     for m in manifests:
@@ -140,4 +170,3 @@ def check_referential(manifests, business_date: dt.date, ctx: Context, profiles_
                         ctx, spec, "referential", f"referential.unknown_value:{col}",
                         "referential.orphan", col in spec.key_columns,
                         {"values_subset_of": "values seen in clean data"}, orphans))
-    return out

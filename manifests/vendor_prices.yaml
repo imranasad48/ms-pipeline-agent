@@ -12,12 +12,12 @@ sources:
       product_code: string
       product_name: string
       pack_size: string
-      unit_price: float
+      unit_price: float64
       currency: string
       moq: int64
       effective_from: date
       valid_until: date
-      cold_chain: bool
+      cold_chain: string   # the sheet holds the text 'Yes'/'No' (converted to 0/1 in transform)
       notes: string
     observed:
       files: 14

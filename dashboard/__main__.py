@@ -57,8 +57,10 @@ def dump(paths: Paths) -> str:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="python -m dashboard")
-    ap.add_argument("cmd", choices=["build", "serve", "dump"])
+    ap.add_argument("cmd", choices=["build", "serve", "dump", "airflow-snapshot"])
     ap.add_argument("--port", type=int, default=8099)
+    ap.add_argument("--out", default=None, help="airflow-snapshot: file to write "
+                                                 "(default detection/airflow_runs.json)")
     a = ap.parse_args(argv)
     paths = Paths()
     if a.cmd == "dump":
@@ -68,11 +70,20 @@ def main(argv=None) -> int:
         out = build(paths)
         print(f"built {out} (+ {len(list(paths.site.glob('*.html'))) - 1} more pages in {paths.site})")
         return 0
+    from .airflow import DEFAULT_SNAPSHOT, AirflowCLI, AirflowError, StatusCache, export_snapshot
+    if a.cmd == "airflow-snapshot":
+        try:
+            print(f"wrote {export_snapshot(AirflowCLI(), a.out or DEFAULT_SNAPSHOT)}")
+        except AirflowError as ex:
+            print(f"airflow-snapshot: {ex}", file=sys.stderr)
+            return 1
+        return 0
     from healing.settings import Settings
     from .jobs import GenConfig, JobManager
     from .server import make_server
     jobs = JobManager(GenConfig(warehouse=paths.warehouse))
-    srv = make_server(paths, Settings(), a.port, jobs=jobs)
+    srv = make_server(paths, Settings(), a.port, jobs=jobs,
+                      airflow_status=StatusCache(jobs.airflow, snapshot_path=DEFAULT_SNAPSHOT))
     print(f"live dashboard http://localhost:{a.port}  (rebuilds per request; Ctrl-C to stop)")
     print(f"  new pipelines: data root {jobs.cfg.data_root}  ->  warehouse {jobs.cfg.warehouse}  "
           f"(time limit {jobs.cfg.time_limit_s / 60:g} min; generator: {' '.join(jobs.cfg.generator_argv())})")

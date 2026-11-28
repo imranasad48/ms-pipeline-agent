@@ -6,6 +6,10 @@ sources:
   - id: crm_customers_csv
     format: csv
     path_pattern: "${DATA_ROOT}/crm/customers_*.csv"
+    # Each daily file is the full customer master, re-delivered whole (not a day's new rows):
+    # in clean data all 90 daily files are identical. Stale = unchanged for longer than this.
+    delivery: snapshot
+    max_unchanged_periods: 90
     expected_schema:
       customer_id: string
       customer_name: string

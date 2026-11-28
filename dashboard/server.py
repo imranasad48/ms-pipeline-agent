@@ -196,11 +196,12 @@ def make_handler(paths: Paths, settings: Settings, jobs: JobManager | None = Non
 
 
 def make_server(paths: Paths, settings: Settings, port: int = 8099,
-                jobs: JobManager | None = None) -> http.server.ThreadingHTTPServer:
+                jobs: JobManager | None = None,
+                airflow_status: StatusCache | None = None) -> http.server.ThreadingHTTPServer:
     """Threading server: pages stay responsive while a generation job runs in the background.
     `jobs` defaults to a JobManager on the real repo, writing into the dashboard's warehouse."""
     if jobs is None:
         jobs = JobManager(GenConfig(warehouse=paths.warehouse))
-    srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), make_handler(paths, settings, jobs))
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), make_handler(paths, settings, jobs, airflow_status))
     srv.daemon_threads = True
     return srv

@@ -15,7 +15,9 @@ Tests use a fake with the same methods (dashboard/tests/fake_airflow.py).
 """
 from __future__ import annotations
 
+import datetime as dt
 import json
+import os
 import subprocess
 import threading
 import time
@@ -44,8 +46,9 @@ print("@@" + json.dumps({"errors": {k: str(v)[-3000:] for k, v in b.import_error
 
 _STATUS = r'''
 import json, sys
-from airflow.models import DagModel, DagRun
+from airflow.models import DagModel, DagRun, TaskInstance
 from airflow.utils.session import create_session
+iso = lambda t: t.isoformat() if t else None
 out = {}
 with create_session() as s:
     q = s.query(DagModel)
@@ -53,10 +56,16 @@ with create_session() as s:
         q = q.filter(DagModel.dag_id == sys.argv[1])
     for d in q.all():
         r = s.query(DagRun).filter(DagRun.dag_id == d.dag_id).order_by(DagRun.id.desc()).first()
+        failed = sorted(t.task_id for t in s.query(TaskInstance).filter(
+            TaskInstance.dag_id == d.dag_id, TaskInstance.run_id == r.run_id,
+            TaskInstance.state == "failed")) if r else []
         out[d.dag_id] = {"paused": bool(d.is_paused), "active": bool(d.is_active),
             "schedule": d.timetable_description, "has_import_errors": bool(d.has_import_errors),
             "last_run_id": r.run_id if r else None, "last_run_state": str(r.state) if r and r.state else None,
-            "last_run_time": (r.end_date or r.start_date or r.execution_date).isoformat() if r else None}
+            "last_run_time": iso(r.end_date or r.start_date or r.execution_date) if r else None,
+            "last_run_logical_date": iso(r.execution_date) if r else None,
+            "last_run_start": iso(r.start_date) if r else None, "last_run_end": iso(r.end_date) if r else None,
+            "last_run_failed_tasks": failed}
 print("@@" + json.dumps(out))
 '''
 
@@ -273,12 +282,49 @@ def orchestrate(af, dag_id: str, run_id: str, deadline: float, log=print, cancel
         return stop("failed", f"Airflow error: {ex}")
 
 
+# ---------------------------------------------------------------- run-state snapshot
+DEFAULT_SNAPSHOT = REPO / "detection" / "airflow_runs.json"
+
+
+def snapshot_doc(dags: dict, now: dt.datetime | None = None) -> dict:
+    """The JSON detection reads (detection/checks/run_health.py): one entry per DAG with its
+    paused flag and latest run (run id, logical date, state, start/end, failed tasks)."""
+    out = {}
+    for dag_id, i in sorted(dags.items()):
+        run = None
+        if i.get("last_run_id"):
+            run = {"run_id": i["last_run_id"], "logical_date": i.get("last_run_logical_date"),
+                   "state": i.get("last_run_state"), "start": i.get("last_run_start"),
+                   "end": i.get("last_run_end"), "failed_tasks": list(i.get("last_run_failed_tasks") or [])}
+        out[dag_id] = {"paused": bool(i.get("paused")), "latest_run": run}
+    return {"written_at": (now or dt.datetime.now(dt.timezone.utc)).isoformat(timespec="seconds"),
+            "source": "airflow", "dags": out}
+
+
+def write_snapshot(dags: dict, path: Path = DEFAULT_SNAPSHOT, now: dt.datetime | None = None) -> Path:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(snapshot_doc(dags, now), indent=1, sort_keys=True))
+    os.replace(tmp, path)                     # readers never see a half-written file
+    return path
+
+
+def export_snapshot(af, path: Path = DEFAULT_SNAPSHOT) -> Path:
+    """On demand (`python -m dashboard airflow-snapshot`): query Airflow once and write the file."""
+    ok, msg = af.is_available()
+    if not ok:
+        raise AirflowError(msg)
+    return write_snapshot(af.status_all(), path)
+
+
 # ---------------------------------------------------------------- page cache
 class StatusCache:
-    """Last known Airflow status for all DAGs; get() never blocks (refreshes in a background thread)."""
+    """Last known Airflow status for all DAGs; get() never blocks (refreshes in a background thread).
+    With snapshot_path, every successful refresh also writes the run-state snapshot for detection."""
 
-    def __init__(self, af, ttl: float = 30.0):
-        self.af, self.ttl = af, ttl
+    def __init__(self, af, ttl: float = 30.0, snapshot_path: Path | None = None):
+        self.af, self.ttl, self.snapshot_path = af, ttl, snapshot_path
         self._data: dict | None = None
         self._at = 0.0
         self._error = ""
@@ -303,6 +349,8 @@ class StatusCache:
         try:
             ok, msg = self.af.is_available()
             data, err = (self.af.status_all(), "") if ok else (None, msg)
+            if data is not None and self.snapshot_path is not None:
+                write_snapshot(data, self.snapshot_path)
         except Exception as ex:
             data, err = None, f"{type(ex).__name__}: {ex}"
         with self._lock:

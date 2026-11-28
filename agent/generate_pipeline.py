@@ -45,6 +45,15 @@ MANDATORY WORKFLOW:
    validation_checks: [ {id, type, description, params} ],
    destination: {type, table, path},
    build: {test_db, attempts_used, status}, version: 1.
+   Detection checks every source against this contract, so:
+   - expected_schema types describe the SOURCE values (not the warehouse
+     column) and use only: string, int64, float64, bool, date, datetime
+     (e.g. a Yes/No column is string).
+   - observed.null_rates count empty strings as null, like NULL/None/NaN/N/A.
+   - If each file re-delivers the full current state (e.g. a master list)
+     instead of new records, add to that source: delivery: snapshot and
+     max_unchanged_periods: N, N >= the longest run of consecutive unchanged
+     files observed.
 6. REPORT: print a final line 'FINAL STATUS: SUCCESS' or 'FINAL STATUS: FAILED
    <reason>', plus a 3-line summary of what was built.
 

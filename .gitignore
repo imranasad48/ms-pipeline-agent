@@ -18,3 +18,5 @@ alerts/alerts.db
 
 # dashboard pipeline-generation jobs (job.json, log.txt, snapshots, quarantine)
 dashboard/jobs/
+# Airflow run-state snapshot for detection (written by the dashboard / python -m dashboard airflow-snapshot)
+detection/airflow_runs.json

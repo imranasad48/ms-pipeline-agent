@@ -16,6 +16,13 @@ from detection.checks.context import Context
 from detection.manifest import load_manifest
 
 DAY = dt.date(2026, 8, 14)
+
+
+@pytest.fixture(autouse=True)
+def _no_real_airflow_snapshot(tmp_path_factory, monkeypatch):
+    """Detection tests never see the live Airflow snapshot: they use snapshot fixtures only."""
+    monkeypatch.setenv("DETECTION_AIRFLOW_SNAPSHOT",
+                       str(tmp_path_factory.mktemp("no_airflow") / "absent.json"))
 CSV_COLS = ["order_line_id", "order_id", "quantity", "unit_price", "order_date"]
 JSON_COLS = ["event_id", "tracking_id", "status", "weight_kg"]
 ERP_COLS = ["product_id", "sku", "is_cold_chain"]

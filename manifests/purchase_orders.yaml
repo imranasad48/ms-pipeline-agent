@@ -43,7 +43,7 @@ sources:
       currency: string
       buyer: string
       incoterm: string
-      created_at: timestamp
+      created_at: datetime
     observed:
       files: 1
       total_rows: 564

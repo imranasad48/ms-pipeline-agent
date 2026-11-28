@@ -273,3 +273,46 @@ def test_loaded_at_shown_in_utc_explicitly():
     assert fmt_utc("2026-11-28T11:00:47+00:00") == "2026-11-28 11:00 UTC"
     assert fmt_utc("2026-11-28T15:00:00+05:00") == "2026-11-28 10:00 UTC"
     assert fmt_utc("2026-11-28 10:58:41") == "2026-11-28 10:58 UTC"
+
+
+# ------------------------------------------------------------------ run-state snapshot for detection
+def test_status_refresh_writes_the_run_state_snapshot(tmp_path):
+    from dashboard.airflow import snapshot_doc
+
+    class Af(FakeAirflow):
+        def status_all(self):
+            return {"crm_customers": {"paused": False, "last_run_id": "dashboard__g-1", "last_run_state": "failed",
+                                      "last_run_logical_date": "2026-11-28T13:02:00+00:00",
+                                      "last_run_start": "2026-11-28T13:02:01+00:00",
+                                      "last_run_end": "2026-11-28T13:03:00+00:00",
+                                      "last_run_failed_tasks": ["transform"]},
+                    "vendor_prices": {"paused": True, "last_run_id": None}}
+    out = tmp_path / "airflow_runs.json"
+    c = StatusCache(Af(), ttl=0, snapshot_path=out)
+    c.get()
+    end = time.time() + 5
+    while time.time() < end and not out.exists():
+        time.sleep(0.02)
+    doc = json.loads(out.read_text())
+    assert doc["source"] == "airflow" and doc["written_at"].endswith("+00:00")
+    assert doc["dags"]["crm_customers"] == {"paused": False, "latest_run": {
+        "run_id": "dashboard__g-1", "logical_date": "2026-11-28T13:02:00+00:00", "state": "failed",
+        "start": "2026-11-28T13:02:01+00:00", "end": "2026-11-28T13:03:00+00:00", "failed_tasks": ["transform"]}}
+    assert doc["dags"]["vendor_prices"] == {"paused": True, "latest_run": None}
+    assert snapshot_doc({})["dags"] == {}
+
+
+def test_status_cache_without_a_path_writes_nothing(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    c = StatusCache(FakeAirflow(), ttl=0)
+    c.get()
+    time.sleep(0.2)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_airflow_snapshot_cli_refuses_cleanly_when_airflow_is_down(tmp_path, monkeypatch, capsys):
+    import dashboard.__main__ as dm
+    import dashboard.airflow as da
+    monkeypatch.setattr(da.AirflowCLI, "is_available", lambda self: (False, NOT_RUNNING))
+    assert dm.main(["airflow-snapshot", "--out", str(tmp_path / "s.json")]) == 1
+    assert "Airflow is not running" in capsys.readouterr().err and not (tmp_path / "s.json").exists()
