@@ -228,5 +228,11 @@ def test_dump_unchanged_shape(world, capsys):  # noqa: F811
 
 
 def test_dashboard_never_reads_error_manifest():
-    src = "".join(p.read_text() for p in Path(REPO / "dashboard").glob("*.py"))
-    assert "error_manifest" not in src
+    """Only catalog.py (to skip it by name) and jobs.py (to withhold log lines / tell the agent not to
+    open it) may mention it, and no line that mentions it opens or reads a file."""
+    for p in Path(REPO / "dashboard").glob("*.py"):
+        lines = [ln for ln in p.read_text().splitlines() if "error_manifest" in ln]
+        if p.name not in ("catalog.py", "jobs.py"):
+            assert not lines, p.name
+        for ln in lines:
+            assert not re.search(r"open\(|read_text|read_bytes|json\.load|glob\(", ln), (p.name, ln)

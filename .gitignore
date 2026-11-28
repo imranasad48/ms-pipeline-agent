@@ -15,3 +15,6 @@ demo_data_old/
 
 alerts/outbox/
 alerts/alerts.db
+
+# dashboard pipeline-generation jobs (job.json, log.txt, snapshots, quarantine)
+dashboard/jobs/

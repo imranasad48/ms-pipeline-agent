@@ -3,7 +3,9 @@
 build  -> dashboard/site/*.html: every page that can be static (index, pipelines, pipeline-<id>,
           incidents[-<severity>], proposals[-<status>], governance), relative links between them
 serve  -> live server on http://localhost:8099: /, /pipelines, /pipeline/<id>, /incidents, /proposals,
-          /governance; rebuilt per request, approve (two-step) / reject
+          /governance; rebuilt per request, approve (two-step) / reject; and (live only) /new + /jobs to
+          generate a pipeline from a prompt (data root: $HEAL_DATA_ROOT, time limit:
+          $PIPELINE_GEN_TIME_LIMIT_MIN, default 20)
 dump   -> the same data as plain text (what the page shows), for terminals and tests
 """
 from __future__ import annotations
@@ -67,9 +69,13 @@ def main(argv=None) -> int:
         print(f"built {out} (+ {len(list(paths.site.glob('*.html'))) - 1} more pages in {paths.site})")
         return 0
     from healing.settings import Settings
+    from .jobs import GenConfig, JobManager
     from .server import make_server
-    srv = make_server(paths, Settings(), a.port)
+    jobs = JobManager(GenConfig(warehouse=paths.warehouse))
+    srv = make_server(paths, Settings(), a.port, jobs=jobs)
     print(f"live dashboard http://localhost:{a.port}  (rebuilds per request; Ctrl-C to stop)")
+    print(f"  new pipelines: data root {jobs.cfg.data_root}  ->  warehouse {jobs.cfg.warehouse}  "
+          f"(time limit {jobs.cfg.time_limit_s / 60:g} min; generator: {' '.join(jobs.cfg.generator_argv())})")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

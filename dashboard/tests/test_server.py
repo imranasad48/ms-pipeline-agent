@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import http.client
+import sys
 import sqlite3
 import threading
 import urllib.parse
@@ -9,6 +10,7 @@ import urllib.parse
 import pytest
 
 from dashboard.data import Paths
+from dashboard.jobs import GenConfig, JobManager
 from dashboard.server import make_server
 from healing.heal import run_heal
 from healing.proposals import list_proposals
@@ -23,8 +25,11 @@ def live(toy, tmp_path):
     paths = Paths(manifests=s.repo_root / "manifests", warehouse=tmp_path / "none.db",
                   incidents=s.incidents_db, proposals=s.index_path,
                   eval_summary=tmp_path / "none.md", site=tmp_path / "site",
-                  orch_status=tmp_path / "st.json")
-    srv = make_server(paths, s, 0)
+                  orch_status=tmp_path / "st.json", history=tmp_path / "history.jsonl")
+    jobs = JobManager(GenConfig(repo_root=s.repo_root, data_root=tmp_path / "data", warehouse=tmp_path / "none.db",
+                                jobs_dir=tmp_path / "jobs", history=tmp_path / "history.jsonl",
+                                generator=[sys.executable, "-c", "raise SystemExit('generator not configured')"]))
+    srv = make_server(paths, s, 0, jobs=jobs)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield toy, case.proposal_id, srv.server_address[1]
     srv.shutdown()
@@ -115,3 +120,25 @@ def test_flash_message_is_escaped(live):
     _, _, port = live
     _, _, html = _req(port, "GET", "/?msg=%3Cscript%3Ealert(1)%3C/script%3E")
     assert "<script>alert(1)" not in html
+
+
+def test_approve_refused_while_generation_job_active_reject_still_allowed(live, tmp_path):
+    import json
+    import os
+    toy, pid, port = live
+    d = tmp_path / "jobs" / "g-20261128-010101-abcd"                # same tmp_path as the fixture's jobs dir
+    d.mkdir(parents=True)
+    (d / "job.json").write_text(json.dumps({"job_id": d.name, "pipeline_id": "newpipe",
+                                            "status": "generating", "pid": os.getpid()}))
+    _, _, html = _req(port, "GET", "/")
+    card = html.split("Awaiting your approval", 1)[1].split("</section>", 1)[0]
+    assert "approve after it finishes" in card and 'action="/approve"' not in card
+    assert 'action="/reject"' in card and "/jobs/g-20261128-010101-abcd" in card
+    status, loc, _ = _req(port, "POST", "/approve", {"proposal_id": pid, "confirm": "apply"})
+    assert status == 303 and "err=1" in loc
+    assert "approve after it finishes" in urllib.parse.unquote_plus(loc)
+    assert {p["proposal_id"]: p["status"] for p in list_proposals(toy.settings)}[pid] == "READY_FOR_APPROVAL"
+    assert _inc_status(toy, "inc_aaaa1111") == "open"
+    status, loc, _ = _req(port, "POST", "/reject", {"proposal_id": pid, "reason": "not now"})
+    assert "err=1" not in loc
+    assert {p["proposal_id"]: p["status"] for p in list_proposals(toy.settings)}[pid] == "REJECTED"

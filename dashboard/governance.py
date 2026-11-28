@@ -11,13 +11,11 @@ import json
 from html import escape as e
 from pathlib import Path
 
-import yaml
-
 from healing.incidents import SKIP_PREFIX
 from orchestrator.watcher import ALL_PROPOSAL_STATUSES, is_eligible, load_config
 
-from .data import (NOT_RECORDED, Paths, load_audit, load_proposal_detail,  # noqa: F401  (re-exported)
-                   summarize_audit)
+from .data import (NOT_RECORDED, Paths, load_audit, read_manifest, load_history, load_proposal_detail,  # noqa: F401
+                   provenance, summarize_audit)
 from .layout import (Links, Raw, a, code, diff_html, fmt_ts, heading, markdown_to_html, page, static_name,
                      table, tag)
 
@@ -26,7 +24,9 @@ def load_contracts(manifests_dir: Path) -> list[dict]:
     """The manifests as written: only fields the manifest actually has are returned."""
     out = []
     for p in sorted(Path(manifests_dir).glob("*.yaml")):
-        m = yaml.safe_load(p.read_text()) or {}
+        m = read_manifest(p)
+        if m is None:
+            continue
         out.append({"pipeline_id": m.get("pipeline_id", p.stem),
                     "version": m.get("version", m.get("manifest_version")),
                     "brief": m.get("brief", ""), "destination": m.get("destination") or {},
@@ -50,7 +50,8 @@ def assemble_governance(paths: Paths | None = None) -> dict:
     audit = load_audit(paths.proposals)
     for r in audit:
         r["detail"] = load_proposal_detail(paths.proposals, r["proposal_id"])
-    return {"contracts": load_contracts(paths.manifests), "autonomy": autonomy_policy(),
+    return {"provenance": provenance(load_history(paths.history)),
+            "contracts": load_contracts(paths.manifests), "autonomy": autonomy_policy(),
             "audit": audit, "audit_counts": summarize_audit(audit)}
 
 
@@ -160,6 +161,39 @@ def _audit_html(rows: list[dict], counts: dict, links: Links) -> str:
             'nothing is backfilled.</p>' + audit_stats(counts) + audit_table(rows, links) + "</section>")
 
 
+def provenance_html(rec: dict | None, links: Links) -> str:
+    """'created by ... on ... from prompt ...' for a generated pipeline, else 'not recorded'."""
+    if not rec:
+        return ('<p class="muted">Provenance: not recorded (built before generation history was kept '
+                'in <code>agent/generation_history.jsonl</code>).</p>')
+    job = (f' &middot; job <a href="/jobs/{e(rec["job_id"])}"><code>{e(rec["job_id"])}</code></a>'
+           if links.live and rec.get("job_id") else "")
+    rows = "" if rec.get("rows_loaded") is None else f' &middot; {rec["rows_loaded"]:,} rows loaded at creation'
+    return (f'<p>Created by <b>{e(str(rec.get("actor", "?")))}</b> via {e(str(rec.get("channel", "?")))} on '
+            f'<span class="nowrap">{e(fmt_ts(rec.get("finished_at") or rec.get("started_at") or ""))}</span>'
+            f' from sources {", ".join(f"<code>{e(str(x))}</code>" for x in rec.get("sources") or [])}{rows}{job}.</p>'
+            f'<p class="muted">Prompt:</p><blockquote class="prompt">{e(str(rec.get("prompt", "")))}</blockquote>')
+
+
+def _provenance_section(contracts: list[dict], prov: dict, links: Links) -> str:
+    rows = []
+    for c in contracts:
+        r = prov.get(c["pipeline_id"])
+        if r:
+            what = Raw(f'{e(str(r.get("actor", "?")))} via {e(str(r.get("channel", "?")))}')
+            when = fmt_ts(r.get("finished_at") or "")
+            prompt = str(r.get("prompt", ""))
+            prompt = prompt if len(prompt) <= 140 else prompt[:140] + "…"
+        else:
+            what, when, prompt = Raw('<span class="muted">not recorded</span>'), "", ""
+        rows.append([a(links.pipeline(c["pipeline_id"]), c["pipeline_id"]), what, when, prompt])
+    return ('<section class=card><h2>Pipeline provenance</h2>'
+            '<p class="sub">Who created each pipeline, when, and from which prompt '
+            '(<code>agent/generation_history.jsonl</code>, append-only).</p>'
+            + table(["pipeline", "created by", "created", "prompt"], rows, empty="No manifests found.")
+            + "</section>")
+
+
 def render_governance(g: dict, now: dt.datetime | None = None, live: bool = False, open_pid: str = "") -> str:
     links = Links(live, {c["pipeline_id"] for c in g["contracts"]})
     body = [heading("Governance", "Claim: <b>nothing touches production without a logged human decision.</b> "
@@ -168,5 +202,6 @@ def render_governance(g: dict, now: dt.datetime | None = None, live: bool = Fals
             '<p class="sub">Rendered from <code>manifests/*.yaml</code>; fields a manifest lacks are omitted.</p>',
             "".join(_contract_html(c, c["pipeline_id"] == open_pid) for c in g["contracts"])
             or '<p class="empty">No manifests found.</p>',
-            "</section>", _autonomy_html(g["autonomy"]), _audit_html(g["audit"], g["audit_counts"], links)]
+            "</section>", _provenance_section(g["contracts"], g.get("provenance", {}), links),
+            _autonomy_html(g["autonomy"]), _audit_html(g["audit"], g["audit_counts"], links)]
     return page("Governance", "governance", "".join(body), links, now)

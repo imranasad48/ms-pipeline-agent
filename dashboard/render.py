@@ -43,7 +43,7 @@ later();
 })();</script>"""
 
 
-def _ready_card(r: dict, live: bool) -> str:
+def _ready_card(r: dict, live: bool, generating: dict | None = None) -> str:
     pid = e(r["proposal_id"])
     files = diff_files(r["diff"])
     body = [f'<section class="card ready"><h2>Awaiting your approval &mdash; <code>{pid}</code></h2>',
@@ -57,17 +57,23 @@ def _ready_card(r: dict, live: bool) -> str:
     if live:
         changes = (", ".join(f"<code>{e(f)}</code>" for f in files) if files
                    else "the staged files of this proposal")
+        if generating:      # a failed generation job restores dags/, which would undo this fix
+            approve = (f'<p class="warn approve-locked">A pipeline is being generated '
+                       f'(<a href="/jobs/{e(generating["job_id"])}">{e(generating["pipeline_id"])}</a>); '
+                       'approve after it finishes. Reject is still available.</p>')
+        else:
+            approve = (
+                '<details class="confirm"><summary class="btn approve">Approve &amp; apply&hellip;</summary>'
+                '<div class="confirm-box">'
+                f'<p><b>This changes production.</b> Files overwritten with the staged version: {changes}.</p>'
+                f'<p>Incident <code>{e(r["incident_id"])}</code> moves to <code>resolved_pending_verification</code>; '
+                'the decision is logged with your name, channel <code>dashboard</code> and the time.</p>'
+                f'<form method="post" action="/approve"><input type="hidden" name="proposal_id" value="{pid}">'
+                '<input type="hidden" name="confirm" value="apply">'
+                '<button class="approve" type="submit">Confirm apply to production</button></form>'
+                '</div></details>')
         body.append(
-            '<div class="actions">'
-            '<details class="confirm"><summary class="btn approve">Approve &amp; apply&hellip;</summary>'
-            '<div class="confirm-box">'
-            f'<p><b>This changes production.</b> Files overwritten with the staged version: {changes}.</p>'
-            f'<p>Incident <code>{e(r["incident_id"])}</code> moves to <code>resolved_pending_verification</code>; '
-            'the decision is logged with your name, channel <code>dashboard</code> and the time.</p>'
-            f'<form method="post" action="/approve"><input type="hidden" name="proposal_id" value="{pid}">'
-            '<input type="hidden" name="confirm" value="apply">'
-            '<button class="approve" type="submit">Confirm apply to production</button></form>'
-            '</div></details>'
+            '<div class="actions">' + approve +
             '<form method="post" action="/reject">'
             f'<input type="hidden" name="proposal_id" value="{pid}">'
             '<textarea name="reason" placeholder="Reason for rejecting (required)" required></textarea>'
@@ -98,7 +104,7 @@ INCIDENT_HEADERS = ["date", "severity", "pipeline", "source", "check", "family",
 
 
 def render(d: dict, now: dt.datetime | None = None, live: bool = False, flash: str = "",
-           flash_error: bool = False) -> str:
+           flash_error: bool = False, generating: dict | None = None) -> str:
     links = Links(live, {p["pipeline_id"] for p in d["pipelines"]})
     inc = d["incidents"]
     sev_counts = inc["by_severity"]
@@ -112,7 +118,7 @@ def render(d: dict, now: dt.datetime | None = None, live: bool = False, flash: s
                  f'<code>{e(orch.get("incident_id", ""))}</code> (<code>{e(orch.get("check_id", ""))}</code>) '
                  f'since {e(fmt_ts(orch.get("since", "")))} &mdash; a proposal will appear here when ready.</section>')
     ready = d.get("ready", [])
-    s += [_ready_card(r, live) for r in ready]
+    s += [_ready_card(r, live, generating) for r in ready]
     if not ready:
         s.append('<section class="card"><p class="empty">No proposals awaiting approval.</p></section>')
 

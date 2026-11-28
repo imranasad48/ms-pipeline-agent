@@ -28,9 +28,20 @@ class Paths:
     eval_summary: Path = REPO / "evaluation" / "results" / "summary.md"
     site: Path = REPO / "dashboard" / "site"
     orch_status: Path = REPO / "orchestrator" / "status.json"
+    history: Path = REPO / "agent" / "generation_history.jsonl"
 
 
 # ---------------------------------------------------------------- pipelines
+def read_manifest(p: Path) -> dict | None:
+    """A manifest as a dict, or None when it is unreadable or incomplete (e.g. being written
+    by a generation job right now) -- such files are skipped, never a 500."""
+    try:
+        m = yaml.safe_load(Path(p).read_text())
+    except (OSError, yaml.YAMLError):
+        return None
+    return m if isinstance(m, dict) and m.get("pipeline_id") else None
+
+
 def _table_state(con: sqlite3.Connection, table: str) -> dict:
     cols = [r[1] for r in con.execute(f'PRAGMA table_info("{table}")')]
     if not cols:
@@ -50,7 +61,9 @@ def load_pipelines(manifests_dir: Path, warehouse_db: Path) -> list[dict]:
     out = []
     try:
         for p in sorted(Path(manifests_dir).glob("*.yaml")):
-            m = yaml.safe_load(p.read_text())
+            m = read_manifest(p)
+            if m is None:
+                continue
             table = (m.get("destination") or {}).get("table", "")
             state = (_table_state(con, table) if con and table
                      else {"rows": None, "last_loaded_at": None, "note": "warehouse not found"})
@@ -193,6 +206,33 @@ def load_eval_summary(path: Path) -> dict | None:
     return {"generated": m.group(1) if m else "", "markdown": text}
 
 
+# ------------------------------------------------------- generation history
+def load_history(path: Path) -> list[dict]:
+    """agent/generation_history.jsonl (append-only, one JSON object per line); bad lines skipped."""
+    out = []
+    try:
+        lines = Path(path).read_text().splitlines()
+    except OSError:
+        return out
+    for ln in lines:
+        try:
+            rec = json.loads(ln)
+        except ValueError:
+            continue
+        if isinstance(rec, dict) and rec.get("pipeline_id"):
+            out.append(rec)
+    return out
+
+
+def provenance(history: list[dict]) -> dict:
+    """pipeline_id -> the record of the job that created it (latest succeeded line)."""
+    out = {}
+    for r in history:
+        if r.get("outcome") == "succeeded":
+            out[r["pipeline_id"]] = r
+    return out
+
+
 # -------------------------------------------------------------- audit trail
 NOT_RECORDED = "not recorded"
 
@@ -277,6 +317,7 @@ def assemble(paths: Paths | None = None) -> dict:
     for r in audit:
         r["detail"] = load_proposal_detail(paths.proposals, r["proposal_id"])
     return {"audit": audit, "audit_counts": summarize_audit(audit),
+            "provenance": provenance(load_history(paths.history)),
             "ready": ready, "orchestrator": load_orchestrator_status(paths.orch_status),
             "pipelines": load_pipelines(paths.manifests, paths.warehouse),
             "incidents": summarize_incidents(inc),

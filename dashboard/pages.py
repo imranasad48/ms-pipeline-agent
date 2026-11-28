@@ -15,7 +15,8 @@ import pandas as pd
 
 from .data import (INCIDENT_FILTERS, SEVERITIES, Paths, assemble, filter_incidents, load_incidents,
                    load_pipelines, parse_incident_filters, summarize_audit)
-from .governance import assemble_governance, audit_stats, audit_table, load_contracts, render_governance
+from .governance import (assemble_governance, audit_stats, audit_table, load_contracts, provenance_html,
+                         render_governance)
 from .layout import (Links, Raw, a, bars, code, fmt_int, fmt_ts, heading, not_found, page, sev, static_name,
                      status_class, table, tag)
 from .render import INCIDENT_HEADERS, incident_rows, pipelines_table, render
@@ -87,8 +88,12 @@ def render_pipeline(pid: str, d: dict, contracts: list[dict], df: pd.DataFrame, 
     history = ('<section class="card audit"><h2>Proposal history</h2>'
                + (audit_stats(summarize_audit(hist)) if hist else "")
                + audit_table(hist, links, empty="No proposals for this pipeline yet.") + "</section>")
-    body = (heading(pid, e(p["brief"]) if p["brief"] else "")
-            + f'<div class="grid two">{contract}{load}</div>' + incidents + history)
+    prov = ('<section class="card"><h2>Provenance</h2>'
+            + provenance_html(d.get("provenance", {}).get(pid), links)
+            + f'<p class="muted">Airflow DAG file: <code>dags/{e(pid)}_dag.py</code></p></section>')
+    brief = str(p["brief"] or "").split("\n\n")[0]
+    body = (heading(pid, e(brief) if brief else "")
+            + f'<div class="grid two">{contract}{load}</div>' + prov + incidents + history)
     return page(pid, "pipelines", body, links, now)
 
 
@@ -198,12 +203,13 @@ def _q(query: dict, k: str) -> str:
 
 
 def route(paths: Paths, path: str, query: dict | None = None, live: bool = True, now: dt.datetime | None = None,
-          flash: str = "", flash_error: bool = False) -> tuple[int, str]:
+          flash: str = "", flash_error: bool = False,
+          generating: dict | None = None) -> tuple[int, str]:
     """(status, html) for a logical path; unknown paths and pipeline ids give a 404 page."""
     query = query or {}
     path = urllib.parse.unquote(path.rstrip("/")) or "/"
     if path in ("/", "/index.html"):
-        return 200, render(assemble(paths), now, live, flash, flash_error)
+        return 200, render(assemble(paths), now, live, flash, flash_error, generating)
     if path == "/governance":
         return 200, render_governance(assemble_governance(paths), now, live, open_pid=_q(query, "open"))
     if path == "/incidents":

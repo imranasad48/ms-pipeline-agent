@@ -67,6 +67,7 @@ def main(argv=None) -> int:
         root = proposal_dir(s, a.proposal_id)
         print((root / "proposal.md").read_text())
     elif a.cmd == "apply":
+        from dashboard.jobs import refuse_if_generating; refuse_if_generating()  # noqa: E702 (dashboard job active)
         files = apply_proposal(s, a.proposal_id, a.force_drift)
         print(f"applied {a.proposal_id}: " + ", ".join(files))
         print("incident status -> resolved_pending_verification (if it was open)")

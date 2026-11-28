@@ -1,5 +1,8 @@
-"""Generation Agent v0 — brief in, pipeline + DAG + manifest out."""
-import argparse, anyio
+"""Generation Agent v0 — brief in, pipeline + DAG + manifest out.
+
+--data-root (or $PIPELINE_GEN_DATA_ROOT) sets the data the agent inspects and self-tests
+against; default ../data_generation/data_clean, i.e. exactly the previous behaviour."""
+import argparse, os, anyio
 from claude_agent_sdk import query, ClaudeAgentOptions
 
 SYSTEM = """You are the Pipeline Generation Agent inside a self-healing data
@@ -52,9 +55,21 @@ HARD CONSTRAINTS:
 - Clean up test_build.db at the end.
 """
 
-async def run(brief: str):
+DEFAULT_DATA_ROOT = "../data_generation/data_clean"
+
+
+def system_prompt(data_root: str = DEFAULT_DATA_ROOT) -> str:
+    """SYSTEM with every host-side data location pointed at data_root (identity for the default)."""
+    if data_root == DEFAULT_DATA_ROOT:
+        return SYSTEM
+    root = data_root.rstrip("/")
+    return (SYSTEM.replace(DEFAULT_DATA_ROOT, root)
+                  .replace("../data_generation/ (read-only testbed)", f"{root}/ (read-only testbed)"))
+
+
+async def run(brief: str, data_root: str = DEFAULT_DATA_ROOT):
     opts = ClaudeAgentOptions(
-        system_prompt=SYSTEM,
+        system_prompt=system_prompt(data_root),
         allowed_tools=["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
         permission_mode="bypassPermissions",
         max_turns=120,
@@ -75,5 +90,8 @@ async def run(brief: str):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--brief", required=True)
+    ap.add_argument("--data-root", default=os.environ.get("PIPELINE_GEN_DATA_ROOT") or DEFAULT_DATA_ROOT,
+                    help="data the agent inspects and self-tests against "
+                         "(default: $PIPELINE_GEN_DATA_ROOT, else %(default)s)")
     args = ap.parse_args()
-    anyio.run(run, args.brief)
+    anyio.run(run, args.brief, args.data_root)

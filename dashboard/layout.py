@@ -29,6 +29,8 @@ h3{font-size:var(--t-md);margin:var(--s4) 0 var(--s2);color:var(--ink-2)}
 .top{background:var(--surface);border-bottom:1px solid var(--line)}
 .top .in,main,.foot{max-width:1240px;margin:0 auto;padding-left:var(--s5);padding-right:var(--s5)}
 .top .in{display:flex;align-items:center;gap:var(--s6);height:52px}
+.top .cta{margin-left:auto}.primary{background:#2f6fd0;color:#fff}.primary:hover{background:#3a7de0;text-decoration:none}
+.primary[aria-current]{box-shadow:0 0 0 2px var(--ink-2)}
 .brand{font-weight:600;font-size:var(--t-lg);color:var(--ink)}
 .nav{display:flex;gap:var(--s1);flex-wrap:wrap}
 .nav a{color:var(--ink-2);padding:var(--s1) var(--s3);border-radius:var(--radius)}
@@ -81,6 +83,13 @@ details{margin:var(--s2) 0}summary{cursor:pointer}details.card>summary{font-weig
 .md h1,.md h2,.md h3,.md h4{font-size:var(--t-md);margin:var(--s3) 0 var(--s1)}.md p,.md li{margin:2px 0}.md ul{padding-left:20px;margin:var(--s1) 0}
 .audit table{font-size:var(--t-xs)}.audit code.pid{white-space:nowrap}
 .audit td:last-child{min-width:180px;max-width:320px;overflow-wrap:anywhere}
+blockquote.prompt{margin:0 0 var(--s2);padding:var(--s2) var(--s3);border-left:3px solid var(--line);white-space:pre-wrap;color:var(--ink-2)}
+pre.log{background:var(--bg);border:1px solid var(--line);border-radius:var(--radius);padding:var(--s2) var(--s3);font:var(--t-xs)/1.45 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;max-height:60vh;overflow-y:auto;margin:0}
+pre.log.small{max-height:240px}
+.jobbar{display:flex;justify-content:space-between;align-items:center;gap:var(--s4);flex-wrap:wrap;margin-bottom:var(--s3)}
+form.inline{margin:0}textarea.prompt-input{width:100%;max-width:820px;height:120px}
+input[type=text]{min-width:280px}input[type=checkbox]{margin:2px 0 0}
+button:disabled{opacity:.5;cursor:not-allowed}
 .rules li{margin:3px 0}.stat{display:inline-block;margin:0 var(--s5) var(--s1) 0}.stat b{font-size:var(--t-lg)}
 """
 
@@ -183,7 +192,9 @@ def fmt_int(n) -> str:
 STATUS_CLASS = {"APPLIED": "ok", "READY_FOR_APPROVAL": "warn", "ESCALATED": "info", "REJECTED": "muted",
                 "FAILED": "critical", "FAILED_VALIDATION": "critical",
                 "critical": "critical", "warn": "warn", "info": "info",
-                "open": "warn", "resolved_pending_verification": "ok", "resolved": "ok", "closed": "muted"}
+                "open": "warn", "resolved_pending_verification": "ok", "resolved": "ok", "closed": "muted",
+                "queued": "info", "generating": "info", "loading": "info", "succeeded": "ok", "failed": "critical",
+                "cancelled": "muted", "interrupted": "warn"}
 
 
 def status_class(s: str) -> str:
@@ -198,13 +209,23 @@ def sev(s: str) -> Raw:
     return Raw(f'<span class="{status_class(s)}">{e(str(s))}</span>')
 
 
+_DATE_CELL = re.compile(r"^\s*\d{4}-\d\d-\d\d(?:[ T]\d\d:\d\d(?::\d\d)?)?\s*$")
+
+
 def table(headers: list, rows: list, num: set = frozenset(), empty: str = "Nothing to show.",
           cls: str = "") -> str:
     if not rows:
         return f'<p class="empty">{e(empty)}</p>'
     th = "".join(f"<th{' class=num' if i in num else ''}>{e(x)}</th>" for i, x in enumerate(headers))
-    body = "".join("<tr>" + "".join(f"<td{' class=num' if i in num else ''}>{h(c)}</td>"
-                                    for i, c in enumerate(r)) + "</tr>" for r in rows)
+
+    def td(i, c):
+        cls = ["num"] if i in num else []
+        if _DATE_CELL.match(str(c)) or (isinstance(c, Raw) and _DATE_CELL.match(re.sub(r"<[^>]+>", "", c))):
+            cls.append("nowrap")                       # dates and timestamps never wrap
+        attr = ' class="' + " ".join(cls) + '"' if cls else ""
+        return f"<td{attr}>{h(c)}</td>"
+
+    body = "".join("<tr>" + "".join(td(i, c) for i, c in enumerate(r)) + "</tr>" for r in rows)
     return f'<div class="wrap{" " + cls if cls else ""}"><table><tr>{th}</tr>{body}</table></div>'
 
 
@@ -290,7 +311,7 @@ def diff_files(diff: str) -> list[str]:
 
 # ------------------------------------------------------------------ page shell
 def page(title: str, active: str, body: str, links: Links, now: dt.datetime | None = None,
-         head_extra: str = "", foot_note: str = "") -> str:
+         head_extra: str = "", foot_note: str = "", body_end: str = "") -> str:
     """The one base layout: top bar with product name + nav, <main>, footer with generated-at."""
     now = now or dt.datetime.now()
     nav = "".join(f'<a href="{e(links.nav(k))}"{" aria-current=page" if k == active else ""}>{e(label)}</a>'
@@ -300,11 +321,14 @@ def page(title: str, active: str, body: str, links: Links, now: dt.datetime | No
             "<meta name=viewport content='width=device-width,initial-scale=1'>"
             f"<title>{e(full_title)}</title><style>{CSS}</style>{head_extra}</head><body>"
             f'<header class="top"><div class="in"><a class="brand" href="{e(links.overview())}">{PRODUCT}</a>'
-            f'<nav class="nav" aria-label="Main">{nav}</nav></div></header>'
+            f'<nav class="nav" aria-label="Main">{nav}</nav>'
+            + (f'<a class="btn primary cta" href="/new"{" aria-current=page" if active == "new" else ""}>New pipeline</a>'
+               if links.live else "")
+            + '</div></header>'
             f"<main>{body}</main>"
             f'<footer class="foot">Generated <span id="generated-at">{e(fmt_ts(now))}</span>'
             " &middot; read-only view of manifests, detection/incidents.db, healing/proposals and evaluation results"
-            f"{' &middot; ' + foot_note if foot_note else ''}</footer></body></html>")
+            f"{' &middot; ' + foot_note if foot_note else ''}</footer>{body_end}</body></html>")
 
 
 def heading(title: str, sub: str = "") -> str:
