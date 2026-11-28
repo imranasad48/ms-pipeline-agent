@@ -7,11 +7,21 @@ One job at a time. A job:
      into log.txt,
   3. checks what it produced (FINAL STATUS line, the three expected files, the manifest, and that
      nothing else under dags/ or manifests/ was created or changed),
-  4. loads the new pipeline once (healing/_runner.py, the same runner healing uses) against the
-     configured data root into the dashboard's warehouse,
+  4. runs it through Airflow ("orchestrating", see airflow.orchestrate): waits until Airflow has
+     parsed the DAG, refuses catchup=True, unpauses it (from then on it runs on its schedule),
+     triggers one run `dashboard__<job_id>` and waits for it; the run writes the warehouse,
   5. appends one line to agent/generation_history.jsonl.
-Any unsuccessful end (failure, cancel, time limit, server restart) restores dags/ and manifests/
-to the snapshot; whatever the job wrote there is moved into <job>/quarantine/.
+Any unsuccessful end (failure, cancel, time limit, server restart) pauses the DAG again, drops the
+table the run created, and restores dags/ and manifests/ to the snapshot; whatever the job wrote
+there is moved into <job>/quarantine/.
+
+Preflight at submit (before any agent usage): Airflow must be healthy, the warehouse must be the
+file Airflow writes, and every selected source must be byte-identical between the job's data root
+(what the agent inspects) and the folder Airflow reads (../data_generation/data_clean, mounted at
+/opt/testbed/data_clean); otherwise the job is refused.
+
+"Enable schedule and run now" for an existing pipeline (submit_orchestrate) runs only step 4, as a
+tracked job; on failure its DAG is paused again and nothing else is touched.
 
 Auth: the subprocess inherits the server's environment (the Claude subscription login). No API
 key is read, set or required here. Files named error_manifest.* are never listed, and log lines
@@ -20,6 +30,7 @@ mentioning them are withheld.
 from __future__ import annotations
 
 import datetime as dt
+import filecmp
 import getpass
 import hashlib
 import json
@@ -38,13 +49,14 @@ from pathlib import Path
 
 import yaml
 
+from . import airflow as afl
 from .catalog import build_catalog
 from .data import read_manifest
 
 REPO = Path(__file__).resolve().parent.parent
 RUNNER = REPO / "healing" / "_runner.py"
 
-ACTIVE = ("queued", "generating", "loading")
+ACTIVE = ("queued", "generating", "loading", "orchestrating")
 TERMINAL = ("succeeded", "failed", "cancelled", "interrupted")
 ID_RE = re.compile(r"^[a-z][a-z0-9_]{1,47}$")
 JOB_ID_RE = re.compile(r"^g-\d{8}-\d{6}-[0-9a-f]{4}$")
@@ -56,7 +68,6 @@ RESERVED = set(getattr(sys, "stdlib_module_names", ())) | {
     "airflow", "pandas", "numpy", "yaml", "pytest", "dags", "agent", "detection", "healing",
     "orchestrator", "alerts", "dashboard", "evaluation", "pipeline", "tests", "test", "smoke_test"}
 WATCHED = ("dags", "manifests")
-DEFAULT_STEPS = ["extract", "transform", "load", "validate"]
 
 
 def _default_limit() -> float:
@@ -79,6 +90,12 @@ class GenConfig:
     python: str = sys.executable
     time_limit_s: float = field(default_factory=_default_limit)
     kill_grace_s: float = 5.0
+    # what Airflow reads and writes, as host paths (docker-compose.yaml mounts)
+    airflow_data: Path = field(default_factory=lambda: Path(
+        os.environ.get("PIPELINE_AIRFLOW_DATA", REPO.parent / "data_generation" / "data_clean")))
+    airflow_data_container: str = afl.AirflowCLI.data_dir_container
+    airflow_warehouse: Path = REPO / "warehouse" / "warehouse.db"
+    airflow_poll_s: float = 5.0
 
     @property
     def manifests(self) -> Path:
@@ -209,9 +226,39 @@ def validate_request(cfg: GenConfig, form: dict) -> tuple[dict, list[str]]:
     elif "\x00" in prompt:
         errors.append("The prompt contains a NUL character.")
     picked = [catalog[s] for s in sources if s in catalog]
+    errors += preflight_problems(cfg, picked)
     return {"sources": sources, "pipeline_id": pid, "prompt": prompt,
             "covered": sorted({x for s in picked for x in s["covered_by"]}),
             "source_info": picked}, errors
+
+
+def data_differences(cfg: GenConfig, sources: list[dict]) -> list[str]:
+    """Files of the selected catalog sources that are not byte-identical between the job's data root
+    and the folder Airflow reads (relative paths). Catalog file lists never include error_manifest.*."""
+    a, b = Path(cfg.data_root).resolve(), Path(cfg.airflow_data).resolve()
+    if a == b:
+        return []
+    out = []
+    for s in sources:
+        for rel in s.get("files") or []:
+            x, y = a / rel, b / rel
+            if not (y.is_file() and filecmp.cmp(x, y, shallow=False)):
+                out.append(rel)
+    return sorted(set(out))
+
+
+def preflight_problems(cfg: GenConfig, sources: list[dict]) -> list[str]:
+    """Reasons the Airflow run could not use the same data / warehouse as this dashboard."""
+    errors = []
+    if Path(cfg.warehouse).resolve() != Path(cfg.airflow_warehouse).resolve():
+        errors.append(f"The dashboard's warehouse ({cfg.warehouse}) is not the file Airflow writes "
+                      f"({cfg.airflow_warehouse}); unset WAREHOUSE_DB and restart the dashboard.")
+    diff = data_differences(cfg, sources)
+    if diff:
+        errors.append(f"{len(diff)} selected source file(s) differ between the data root ({cfg.data_root}) and "
+                      f"the folder Airflow reads ({cfg.airflow_data}), so the Airflow run would not read what "
+                      "the agent inspected: " + ", ".join(diff[:8]) + (" ..." if len(diff) > 8 else ""))
+    return errors
 
 
 def compose_brief(req: dict) -> str:
@@ -227,7 +274,12 @@ def compose_brief(req: dict) -> str:
         else:
             rng = f", {s['date_range'][0]} .. {s['date_range'][1]}" if s.get("date_range") else ""
             lines.append(f"- {s['key']}  ({s['count']} file{'s' if s['count'] != 1 else ''}{rng})")
-    lines.append("Never open or list files named error_manifest.* (evaluation ground truth).")
+    lines += ["Orchestration: the dashboard runs this pipeline through Airflow right after you finish "
+              "(it unpauses the DAG and triggers the first run), so the DAG must use schedule=\"@daily\", "
+              "catchup=False and a fixed start_date in the past.",
+              "The destination table must have a loaded_at column holding the UTC load timestamp "
+              "(ISO 8601 with offset, e.g. 2026-11-28T02:30:00+00:00).",
+              "Never open or list files named error_manifest.* (evaluation ground truth)."]
     return "\n".join(lines)
 
 
@@ -325,6 +377,16 @@ def _count(db: Path, table: str) -> int | None:
         con.close()
 
 
+def _columns(db: Path, table: str) -> set:
+    if table not in _tables(db):
+        return set()
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    try:
+        return {r[1] for r in con.execute(f'PRAGMA table_info("{table}")')}
+    finally:
+        con.close()
+
+
 def _drop(db: Path, table: str) -> None:
     if TABLE_RE.match(table or "") and table in _tables(db):
         con = sqlite3.connect(db)
@@ -364,7 +426,8 @@ def append_history(path: Path, job: dict) -> None:
     rec = {"pipeline_id": job["pipeline_id"], "sources": job["sources"], "prompt": job["prompt"],
            "actor": job["actor"], "channel": "dashboard", "started_at": job.get("started_at"),
            "finished_at": job.get("finished_at"), "outcome": job["status"],
-           "rows_loaded": job.get("rows_loaded"), "job_id": job["job_id"]}
+           "rows_loaded": job.get("rows_loaded"), "job_id": job["job_id"],
+           "airflow_run_id": job.get("airflow_run_id"), "airflow_state": job.get("airflow_state")}
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "a") as f:
         f.write(json.dumps(rec, sort_keys=True) + "\n")
@@ -376,8 +439,9 @@ class Refused(Exception):
 
 
 class JobManager:
-    def __init__(self, cfg: GenConfig | None = None):
+    def __init__(self, cfg: GenConfig | None = None, airflow=None):
         self.cfg = cfg or GenConfig()
+        self.airflow = airflow if airflow is not None else afl.AirflowCLI(Path(self.cfg.repo_root))
         self._lock = threading.RLock()
         self._active: str | None = None
         self._cancel: set = set()
@@ -455,28 +519,74 @@ class JobManager:
             if self._active:
                 raise Refused([f"A generation job is already running ({self._active}). "
                                "Wait for it to finish or cancel it, then try again."])
+            ok, msg = self.airflow.is_available()
+            if not ok:
+                raise Refused([msg])
             req, errors = validate_request(self.cfg, form)
             if errors:
                 raise Refused(errors)
-            job_id = f"g-{dt.datetime.now():%Y%m%d-%H%M%S}-{secrets.token_hex(2)}"
+            job_id = self._new_id()
             d = Path(self.cfg.jobs_dir) / job_id
             d.mkdir(parents=True)
             brief = compose_brief(req)
-            job = {"job_id": job_id, "pipeline_id": req["pipeline_id"], "sources": req["sources"],
+            job = {"job_id": job_id, "kind": "generate", "pipeline_id": req["pipeline_id"], "sources": req["sources"],
                    "prompt": req["prompt"], "brief": brief, "covered_by": req["covered"],
                    "actor": actor(), "channel": "dashboard", "created_at": now_iso(),
                    "started_at": None, "finished_at": None, "status": "queued", "exit_code": None,
                    "error": "", "rows_loaded": None, "destination_table": None, "created_table": None,
                    "pid": None, "warnings": [], "time_limit_s": self.cfg.time_limit_s,
                    "data_root": str(self.cfg.data_root), "warehouse": str(self.cfg.warehouse),
-                   "command": self.cfg.job_argv("<brief: see 'brief'>")}
-            self._save(job)
-            (d / "log.txt").write_text("")
-            self._active = job_id
-            t = threading.Thread(target=self._run, args=(job_id,), name=f"gen-{job_id}", daemon=True)
-            self._threads[job_id] = t
-            t.start()
-            return job_id
+                   "command": self.cfg.job_argv("<brief: see 'brief'>"), **self._airflow_fields(job_id)}
+            return self._start(job, self._run)
+
+    def submit_orchestrate(self, pid: str) -> str:
+        """'Enable schedule and run now' for an existing pipeline: a tracked job that runs only the
+        Airflow sequence. Raises Refused(list_of_messages)."""
+        with self._lock:
+            if self._active or active_job_on_disk(self.cfg.jobs_dir):
+                raise Refused(["A generation job is running; try again after it finishes."])
+            if pid in afl.PROTECTED:
+                raise Refused([f"'{pid}' is one of the original DAGs; the dashboard does not change it."])
+            man = read_manifest(self.cfg.manifests / f"{pid}.yaml") if ID_RE.match(pid or "") else None
+            if not man or not (self.cfg.dags / f"{pid}_dag.py").is_file():
+                raise Refused([f"No pipeline '{pid}' with manifests/{pid}.yaml and dags/{pid}_dag.py."])
+            ok, msg = self.airflow.is_available()
+            if not ok:
+                raise Refused([msg])
+            used = [s for s in build_catalog(self.cfg.data_root, self.cfg.manifests) if pid in s["covered_by"]]
+            errors = preflight_problems(self.cfg, used)
+            if errors:
+                raise Refused(errors)
+            job_id = self._new_id()
+            (Path(self.cfg.jobs_dir) / job_id).mkdir(parents=True)
+            table = str((man.get("destination") or {}).get("table", "")) if isinstance(man.get("destination"), dict) else ""
+            job = {"job_id": job_id, "kind": "orchestrate", "pipeline_id": pid, "sources": [s["key"] for s in used],
+                   "prompt": "", "brief": "", "covered_by": [], "actor": actor(), "channel": "dashboard",
+                   "created_at": now_iso(), "started_at": None, "finished_at": None, "status": "queued",
+                   "exit_code": None, "error": "", "rows_loaded": None, "destination_table": table,
+                   "created_table": None, "pid": None, "warnings": [], "time_limit_s": self.cfg.time_limit_s,
+                   "data_root": str(self.cfg.data_root), "warehouse": str(self.cfg.warehouse),
+                   **self._airflow_fields(job_id)}
+            return self._start(job, self._run_orchestrate)
+
+    def _new_id(self) -> str:
+        return f"g-{dt.datetime.now():%Y%m%d-%H%M%S}-{secrets.token_hex(2)}"
+
+    def _airflow_fields(self, job_id: str) -> dict:
+        return {"airflow_run_id": f"dashboard__{job_id}", "airflow_state": None, "dag_enabled": False,
+                "airflow_schedule": None, "airflow_catchup": None, "airflow_failed_task": None,
+                "airflow_log_tail": "",
+                "airflow_data": f"{self.cfg.airflow_data_container} (host: {self.cfg.airflow_data})"}
+
+    def _start(self, job: dict, target) -> str:
+        job_id = job["job_id"]
+        self._save(job)
+        (self.job_dir(job_id) / "log.txt").write_text("")
+        self._active = job_id
+        t = threading.Thread(target=target, args=(job_id,), name=f"gen-{job_id}", daemon=True)
+        self._threads[job_id] = t
+        t.start()
+        return job_id
 
     def cancel(self, job_id: str) -> str:
         """Ask the job thread to stop; it kills the whole process group within ~0.2 s."""
@@ -576,29 +686,10 @@ class JobManager:
                 return
             man = yaml.safe_load((self.cfg.manifests / f"{pid}.yaml").read_text())
             table = str((man.get("destination") or {}).get("table", ""))
-            steps = [str(s["function"]) for s in man.get("steps") or []
-                     if isinstance(s, dict) and re.match(r"^[A-Za-z_]\w*$", str(s.get("function") or ""))]
-            steps = steps or DEFAULT_STEPS
-            self._update(job_id, status="loading", destination_table=table)
-            self._log(job_id, f"loading: steps {', '.join(steps)} -> table '{table}' in {self.cfg.warehouse} "
-                              f"(data root {self.cfg.data_root})")
-            self._update(job_id, created_table=table)
-            out = jd / "load_result.json"
-            argv = [self.cfg.python, str(RUNNER), "--pipeline-root", str(root), "--pid", pid,
-                    "--steps", ",".join(steps), "--data-root", str(self.cfg.data_root),
-                    "--warehouse", str(self.cfg.warehouse), "--staging-dir", str(jd / "stage"),
-                    "--out", str(out)]
-            outcome, rc = self._spawn(job_id, argv, deadline)
-            if outcome != "exit":
-                status, error = self._stopped(outcome)
+            self._update(job_id, status="orchestrating", destination_table=table, created_table=table)
+            status, error, warnings = self._airflow_run(job_id, pid, table, deadline)
+            if status != "succeeded":
                 return
-            error, warnings = self._check_load(job_id, out, steps, table)
-            if error:
-                return
-            rows = _count(self.cfg.warehouse, table)
-            self._update(job_id, rows_loaded=rows)
-            self._log(job_id, f"loaded {rows} rows into '{table}'. Pipeline '{pid}' is ready.")
-            status = "succeeded"
         except Exception as ex:                                    # never leave a job "running"
             error = f"internal error: {type(ex).__name__}: {ex}"
         finally:
@@ -651,28 +742,54 @@ class JobManager:
         self._log(job_id, "generation finished: files and manifest look complete")
         return ""
 
-    def _check_load(self, job_id: str, out: Path, steps: list, table: str) -> tuple[str, list]:
-        try:
-            res = json.loads(out.read_text())
-        except (OSError, ValueError):
-            return "The load did not produce a result file (see the log).", []
-        results, errors = res.get("results", {}), res.get("errors", {})
-        for s in steps:
-            if s == "validate":
-                continue
-            if results.get(f"step:{s}") != "pass":
-                msg = errors.get(f"step:{s}") or errors.get("runner") or results.get(f"step:{s}", "not run")
-                self._log(job_id, f"load step '{s}' failed: {msg}")
-                return f"Loading failed at step '{s}': {msg}", []
+    def _airflow_run(self, job_id: str, pid: str, table: str, deadline: float) -> tuple[str, str, list]:
+        """The Airflow sequence for job_id; (status, error, warnings)."""
+        job = self.get(job_id)
+        used = [s for s in build_catalog(self.cfg.data_root, self.cfg.manifests) if s["key"] in set(job["sources"])]
+        problems = preflight_problems(self.cfg, used)          # re-checked: data may change during generation
+        if problems:
+            return "failed", " ".join(problems), []
+        self._log(job_id, f"orchestrating through Airflow: the run reads {job['airflow_data']} and writes "
+                          f"table '{table}' in {self.cfg.airflow_warehouse}")
+        res = afl.orchestrate(self.airflow, pid, job["airflow_run_id"], deadline,
+                              log=lambda t: self._log(job_id, t), cancelled=lambda: job_id in self._cancel,
+                              poll_s=self.cfg.airflow_poll_s,
+                              on_unpaused=lambda: self._update(job_id, dag_enabled=True))
+        self._update(job_id, airflow_state=res["state"], airflow_schedule=res["schedule"],
+                     airflow_catchup=res["catchup"], airflow_failed_task=res["failed_task"],
+                     airflow_log_tail=res["log_tail"], dag_enabled=res["ok"])
+        if res["log_tail"]:
+            self._log(job_id, "airflow log tail" + (f" (task {res['failed_task']})" if res["failed_task"] else "")
+                      + ":\n" + res["log_tail"])
+        if not res["ok"]:
+            if res["outcome"] == "cancelled":
+                return "cancelled", "Cancelled by the user; the DAG was paused again.", []
+            if res["outcome"] == "timeout":
+                return "failed", (f"Time limit reached ({self.cfg.time_limit_s / 60:g} min) while the Airflow run "
+                                  "was not finished; the DAG was paused again."), []
+            return "failed", res["error"], []
+        rows = _count(self.cfg.warehouse, table) if table else None
+        if table and rows is None:
+            return "failed", (f"The Airflow run succeeded but table '{table}' is not in {self.cfg.warehouse}."), []
         warnings = []
-        bad = sorted(k.split(":", 1)[1] for k, v in results.items() if k.startswith("validate:") and v != "pass")
-        if bad:
-            warnings.append("Data loaded, but the pipeline's own validation flagged: " + ", ".join(bad)
-                            + ". Detection will report these as incidents when it runs.")
-            self._log(job_id, warnings[-1])
-        if _count(self.cfg.warehouse, table) is None:
-            return f"The load finished but table '{table}' is not in the warehouse.", warnings
-        return "", warnings
+        if table and "loaded_at" not in _columns(self.cfg.warehouse, table):
+            warnings.append(f"Table '{table}' has no loaded_at column, so detection cannot check load freshness.")
+        self._update(job_id, rows_loaded=rows)
+        self._log(job_id, f"Airflow run {job['airflow_run_id']} succeeded: {rows} rows in '{table}'. "
+                          f"DAG '{pid}' is enabled and runs on its schedule ({res['schedule']}).")
+        return "succeeded", "", warnings
+
+    def _run_orchestrate(self, job_id: str) -> None:
+        job = self.get(job_id)
+        status, error, warnings = "failed", "", []
+        try:
+            deadline = time.monotonic() + self.cfg.time_limit_s
+            self._update(job_id, status="orchestrating", started_at=now_iso())
+            status, error, warnings = self._airflow_run(job_id, job["pipeline_id"], job["destination_table"], deadline)
+        except Exception as ex:
+            error = f"internal error: {type(ex).__name__}: {ex}"
+        finally:
+            self._finish(job_id, status, error, warnings, False)
 
     def _finish(self, job_id: str, status: str, error: str, warnings: list, snapped: bool) -> None:
         try:
@@ -684,7 +801,8 @@ class JobManager:
             self._log(job_id, f"{status.upper()}: {error}")
         job = self._update(job_id, status=status, error=error, warnings=warnings, finished_at=now_iso(), pid=None)
         try:
-            append_history(self.cfg.history, job)
+            if job.get("kind", "generate") == "generate":
+                append_history(self.cfg.history, job)
         finally:
             with self._lock:
                 self._cancel.discard(job_id)
@@ -694,6 +812,13 @@ class JobManager:
     def _undo(self, job_id: str, snapped: bool) -> None:
         job = self.get(job_id)
         jd = self.job_dir(job_id)
+        if job.get("dag_enabled"):                       # e.g. the server stopped mid-run
+            try:
+                self.airflow.pause(job["pipeline_id"])
+                self._log(job_id, f"airflow: DAG '{job['pipeline_id']}' paused again")
+            except Exception as ex:
+                self._log(job_id, f"airflow: could not pause DAG '{job['pipeline_id']}': {ex}")
+            self._update(job_id, dag_enabled=False)
         if job.get("created_table"):
             _drop(self.cfg.warehouse, job["created_table"])
             self._log(job_id, f"dropped partially loaded table '{job['created_table']}'")
@@ -723,4 +848,5 @@ class JobManager:
                     pass
             self._log(job["job_id"], "the dashboard server restarted while this job was running")
             self._finish(job["job_id"], "interrupted",
-                         "The dashboard server stopped while this job was running.", [], True)
+                         "The dashboard server stopped while this job was running.", [],
+                         job.get("kind", "generate") == "generate")

@@ -185,6 +185,21 @@ def fmt_ts(ts) -> str:
     return f"{m.group(1)} {m.group(2)}" if m else ("" if ts is None else str(ts))
 
 
+def fmt_utc(ts) -> str:
+    """A warehouse loaded_at (stored in UTC) with its zone explicit: '2026-11-28T10:58:41Z' and
+    '2026-11-28T10:58:41+00:00' -> '2026-11-28 10:58 UTC'; other offsets are converted to UTC and
+    a value without an offset is taken as UTC (that is how the pipelines write it)."""
+    if ts is None or ts == "":
+        return ""
+    try:
+        t = dt.datetime.fromisoformat(str(ts).strip().replace("Z", "+00:00"))
+    except ValueError:
+        return fmt_ts(ts)
+    if t.tzinfo is not None:
+        t = t.astimezone(dt.timezone.utc)
+    return t.strftime("%Y-%m-%d %H:%M") + " UTC"
+
+
 def fmt_int(n) -> str:
     return "-" if n is None else f"{n:,}"
 
@@ -194,7 +209,8 @@ STATUS_CLASS = {"APPLIED": "ok", "READY_FOR_APPROVAL": "warn", "ESCALATED": "inf
                 "critical": "critical", "warn": "warn", "info": "info",
                 "open": "warn", "resolved_pending_verification": "ok", "resolved": "ok", "closed": "muted",
                 "queued": "info", "generating": "info", "loading": "info", "succeeded": "ok", "failed": "critical",
-                "cancelled": "muted", "interrupted": "warn"}
+                "cancelled": "muted", "interrupted": "warn", "orchestrating": "info",
+                "success": "ok", "running": "info", "enabled": "ok", "paused": "muted"}
 
 
 def status_class(s: str) -> str:

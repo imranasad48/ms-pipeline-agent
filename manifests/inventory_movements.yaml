@@ -1,0 +1,114 @@
+manifest_version: 1
+pipeline_id: inventory_movements
+brief: "Load the ERP inventory movements into the warehouse as a fact table with one row per movement. Keep all source columns with sensible types, and make sure each movement appears exactly once. Add a loaded_at column holding the UTC timestamp of the load. Name the table inventory_movements."
+created: "2026-11-28"
+sources:
+  - id: erp_inventory_movements
+    format: sqlite
+    path_pattern: "${DATA_ROOT}/erp/erp.db#inventory_movements"
+    expected_schema:
+      movement_id: string
+      movement_date: date
+      movement_timestamp: timestamp
+      movement_type: string
+      batch_no: string
+      product_id: string
+      warehouse_id: string
+      zone_id: string
+      qty: int64
+      uom: string
+      reference_type: string
+      reference_id: string
+      unit_cost: float64
+      created_by: string
+      created_at: timestamp
+    observed:
+      files: 1
+      total_rows: 15529
+      null_rates:
+        movement_id: 0.0
+        movement_date: 0.0
+        movement_timestamp: 0.0
+        movement_type: 0.0
+        batch_no: 0.0
+        product_id: 0.0
+        warehouse_id: 0.0
+        zone_id: 0.0
+        qty: 0.0
+        uom: 0.0
+        reference_type: 0.0
+        reference_id: 0.0   # no SQL NULLs, but 5479 rows (0.3528) are empty strings (return/ship/transfer) -> loaded as NULL
+        unit_cost: 0.0
+        created_by: 0.0
+        created_at: 0.0
+steps:
+  - id: extract
+    file: dags/inventory_movements/pipeline.py
+    function: extract
+    description: "Read erp.db inventory_movements (read-only), check all 15 expected columns exist, stage raw rows."
+  - id: transform
+    file: dags/inventory_movements/pipeline.py
+    function: transform
+    description: "Enforce types (trimmed strings, empty->NULL, int qty, real unit_cost, ISO dates/timestamps), fail on NULL movement_id, dedupe to exactly one row per movement_id (drop exact dups, else keep latest created_at), add loaded_at (UTC)."
+  - id: load
+    file: dags/inventory_movements/pipeline.py
+    function: load
+    description: "Drop and recreate warehouse table inventory_movements (full reload) with movement_id PRIMARY KEY and NOT NULL on required columns."
+  - id: validate
+    file: dags/inventory_movements/pipeline.py
+    function: validate
+    description: "Run all validation_checks against the warehouse table and source; raise on failure."
+validation_checks:
+  - id: row_count_equals_distinct_source_movements
+    type: row_count
+    description: "Row count equals the number of distinct source movement_id values (and > 0)."
+    params: {table: inventory_movements, expected: source_distinct_movement_id_count, build_value: 15529}
+  - id: pk_unique_movement_id
+    type: unique
+    description: "movement_id is unique (each movement appears exactly once)."
+    params: {columns: [movement_id]}
+  - id: movement_id_set_matches_source
+    type: completeness
+    description: "Set of movement_id in the warehouse equals the set in the source (none missing, none extra)."
+    params: {column: movement_id}
+  - id: schema_columns_present
+    type: schema
+    description: "All 15 source columns plus loaded_at, in order."
+    params: {columns: [movement_id, movement_date, movement_timestamp, movement_type, batch_no, product_id, warehouse_id, zone_id, qty, uom, reference_type, reference_id, unit_cost, created_by, created_at, loaded_at]}
+  - id: storage_types
+    type: type
+    description: "Non-null values are stored with the expected SQLite type (qty INTEGER, unit_cost REAL, others TEXT)."
+    params: {integer: [qty], real: [unit_cost], text: [movement_id, movement_date, movement_timestamp, movement_type, batch_no, product_id, warehouse_id, zone_id, uom, reference_type, reference_id, created_by, created_at, loaded_at]}
+  - id: not_null_required
+    type: not_null
+    description: "Every column except reference_id is non-null."
+    params: {columns: [movement_id, movement_date, movement_timestamp, movement_type, batch_no, product_id, warehouse_id, zone_id, qty, uom, reference_type, unit_cost, created_by, created_at, loaded_at]}
+  - id: valid_dates_timestamps
+    type: format
+    description: "movement_date is valid YYYY-MM-DD; movement_timestamp and created_at are valid YYYY-MM-DDTHH:MM:SS."
+    params: {date_columns: [movement_date], timestamp_columns: [movement_timestamp, created_at]}
+  - id: movement_date_matches_timestamp
+    type: consistency
+    description: "movement_date equals the date part of movement_timestamp."
+    params: {columns: [movement_date, movement_timestamp]}
+  - id: movement_type_accepted_values
+    type: accepted_values
+    description: "movement_type is one of the observed ERP movement types."
+    params: {column: movement_type, values: [adjustment, goods_receipt, pick, return, ship, transfer]}
+  - id: sums_match_source
+    type: aggregate_equality
+    description: "SUM(qty) equals source and SUM(unit_cost) within 0.01 of source (checked when the source has no duplicate movement_id)."
+    params: {columns: [qty, unit_cost], tolerance: 0.01, build_value_qty: 2847054}
+  - id: loaded_at_single_utc
+    type: format
+    description: "loaded_at holds one non-null UTC ISO-8601 timestamp (suffix Z) for the whole load."
+    params: {column: loaded_at, format: "%Y-%m-%dT%H:%M:%SZ"}
+destination:
+  type: sqlite
+  table: inventory_movements
+  path: "${WAREHOUSE_DB}"
+build:
+  test_db: ./warehouse/test_build.db
+  attempts_used: 1
+  status: success
+version: 1

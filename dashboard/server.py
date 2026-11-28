@@ -13,7 +13,12 @@ POST /generate                 sources, pipeline_id, prompt -> 303 /jobs/<id> (o
 GET  /jobs  /jobs/<id>         job list / live job page
 GET  /jobs/<id>/poll?offset=N  JSON: status, new log text, head html (the job page polls this every 2 s)
 POST /jobs/<id>/cancel         stop the job's whole process group
+POST /pipeline/<id>/orchestrate  "Enable schedule and run now" for an existing pipeline -> 303 /jobs/<id>
+                                 (refused while a job is active)
 Every POST gets the same same-origin check.
+
+Airflow status on pages comes from StatusCache (refreshed in a background thread): no page request
+ever waits for the airflow CLI.
 """
 from __future__ import annotations
 
@@ -24,6 +29,7 @@ import urllib.parse
 from healing.proposals import apply_proposal, reject_proposal
 from healing.settings import Settings
 
+from .airflow import StatusCache
 from .data import Paths
 from .genpages import poll_json, render_job, render_jobs, render_new
 from .jobs import GENERATING_REFUSAL, GenConfig, JobManager, Refused, active_job_on_disk
@@ -32,6 +38,7 @@ from .pages import route
 
 MAX_BODY = 64 * 1024
 _JOB = re.compile(r"^/jobs/([^/]+)(/poll|/cancel)?$")
+_ORCH = re.compile(r"^/pipeline/([a-z][a-z0-9_]{1,47})/orchestrate$")
 
 
 def _pipeline_ids(paths: Paths) -> set:
@@ -45,7 +52,11 @@ def _pipeline_ids(paths: Paths) -> set:
     return out
 
 
-def make_handler(paths: Paths, settings: Settings, jobs: JobManager | None = None):
+def make_handler(paths: Paths, settings: Settings, jobs: JobManager | None = None,
+                 airflow_status: StatusCache | None = None):
+    if airflow_status is None and jobs is not None:
+        airflow_status = StatusCache(jobs.airflow)
+
     class Handler(http.server.BaseHTTPRequestHandler):
         server_version = "PipelineAgentDashboard"
 
@@ -107,7 +118,9 @@ def make_handler(paths: Paths, settings: Settings, jobs: JobManager | None = Non
                     return self._send(code, page.encode(), *( [ctype] if ctype else []))
                 code, page = route(paths, url.path, q, live=True, flash=(q.get("msg") or [""])[0],
                                    flash_error="err" in q,
-                                   generating=self._generating() if url.path in ("/", "/index.html") else None)
+                                   generating=self._generating() if (url.path in ("/", "/index.html")
+                                                                      or url.path.startswith("/pipeline/")) else None,
+                                   airflow=airflow_status.get() if airflow_status is not None else None)
             except Exception as ex:                # never a traceback in the browser
                 self.log_error("GET %s failed: %s: %s", url.path, type(ex).__name__, ex)
                 code, page = 500, not_found("This page could not be rendered; see the server log.", Links(True))
@@ -125,7 +138,7 @@ def make_handler(paths: Paths, settings: Settings, jobs: JobManager | None = Non
                 return self._send(413, b"request body too large", "text/plain")
             form = urllib.parse.parse_qs(self.rfile.read(n).decode("utf-8", errors="replace"),
                                          keep_blank_values=True)
-            if jobs is not None and (self.path == "/generate" or _JOB.match(self.path)):
+            if jobs is not None and (self.path == "/generate" or _JOB.match(self.path) or _ORCH.match(self.path)):
                 return self._gen_post(form)
             if self.path not in ("/approve", "/reject"):
                 return self._send(404, b"not found", "text/plain")
@@ -153,6 +166,15 @@ def make_handler(paths: Paths, settings: Settings, jobs: JobManager | None = Non
                 self._redirect(f"Error: {type(ex).__name__}: {ex}", True)
 
         def _gen_post(self, form: dict):
+            o = _ORCH.match(self.path)
+            if o:
+                try:
+                    job_id = jobs.submit_orchestrate(o.group(1))
+                except Refused as ex:
+                    return self._redirect("Not started: " + " ".join(ex.args[0]), True)
+                if airflow_status is not None:
+                    airflow_status.invalidate()
+                return self._send(303, b"", headers=[("Location", f"/jobs/{job_id}")])
             if self.path == "/generate":
                 try:
                     job_id = jobs.submit(form)

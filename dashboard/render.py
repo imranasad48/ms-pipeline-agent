@@ -12,7 +12,7 @@ import datetime as dt
 from html import escape as e
 
 from .governance import audit_table
-from .layout import (Links, Raw, a, code, diff_files, diff_html, fmt_int, fmt_ts, heading,  # noqa: F401
+from .layout import (Links, Raw, a, code, diff_files, diff_html, fmt_int, fmt_ts, fmt_utc, heading,  # noqa: F401
                      markdown_to_html, page, sev, status_class, table, tag)
 
 LIVE_REGION = "live-region"
@@ -86,7 +86,7 @@ def _ready_card(r: dict, live: bool, generating: dict | None = None) -> str:
 
 def pipelines_table(pipelines: list[dict], open_by_pipeline: dict, links: Links) -> str:
     rows = [[a(links.pipeline(p["pipeline_id"]), p["pipeline_id"]), f"v{p['version']}", code(p["destination"]),
-             fmt_ts(p["last_loaded_at"]) if p["last_loaded_at"] else Raw('<span class="muted">n/a</span>'),
+             Raw(f'<span class="nowrap">{e(fmt_utc(p["last_loaded_at"]))}</span>') if p["last_loaded_at"] else Raw('<span class="muted">n/a</span>'),
              fmt_int(p["rows"]), open_by_pipeline.get(p["pipeline_id"], 0),
              Raw(f'<span class="muted">{e(p["note"])}</span>')] for p in pipelines]
     return table(["pipeline", "version", "destination", "last load", "rows", "open incidents", "note"], rows,

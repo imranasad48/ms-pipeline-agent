@@ -1,0 +1,115 @@
+manifest_version: 1
+pipeline_id: vendor_prices
+brief: "Load the weekly vendor price sheets into the warehouse, keeping every week so the price history is preserved: one row per price line per weekly sheet. Keep all source columns with sensible types and record which file and which week each row came from. Add a loaded_at column holding the UTC timestamp of the load. Name the table vendor_prices."
+created: "2026-11-28"
+sources:
+  - id: manual_vendor_price_sheet
+    format: xlsx
+    path_pattern: "${DATA_ROOT}/manual/vendor_price_sheet_*.xlsx"
+    expected_schema:
+      supplier_code: string
+      supplier_name: string
+      product_code: string
+      product_name: string
+      pack_size: string
+      unit_price: float
+      currency: string
+      moq: int64
+      effective_from: date
+      valid_until: date
+      cold_chain: bool
+      notes: string
+    observed:
+      files: 14
+      total_rows: 758
+      layout: "sheet 'Price Sheet': 3 banner rows (title, 'week commencing' subtitle, blank) then header on row 4; one row per price line; second sheet 'Instructions' is non-data and skipped; week taken from filename (2026-W33..W46); effective_from equals week-commencing date; currency always PKR; cold_chain Yes/No"
+      rows_per_file: {2026-W33: 49, 2026-W34: 51, 2026-W35: 75, 2026-W36: 43, 2026-W37: 47, 2026-W38: 61, 2026-W39: 64, 2026-W40: 44, 2026-W41: 64, 2026-W42: 55, 2026-W43: 50, 2026-W44: 40, 2026-W45: 43, 2026-W46: 72}
+      key_candidates: [[week, supplier_code, product_code]]
+      null_rates:
+        supplier_code: 0.0
+        supplier_name: 0.0
+        product_code: 0.0
+        product_name: 0.0
+        pack_size: 0.0
+        unit_price: 0.0
+        currency: 0.0
+        moq: 0.0
+        effective_from: 0.0
+        valid_until: 0.0
+        cold_chain: 0.0
+        notes: 0.335
+steps:
+  - id: extract
+    file: dags/vendor_prices/pipeline.py
+    function: extract
+    description: "Read all vendor_price_sheet_*.xlsx; locate the header row by content on each sheet (non-data sheets skipped), map header aliases to canonical columns, keep rows with a supplier or product code, add week (from filename) and source_file."
+  - id: transform
+    file: dags/vendor_prices/pipeline.py
+    function: transform
+    description: "Trim text, upper-case supplier/product codes and currency, coerce unit_price to float and moq to int (thousand separators / junk -> NULL), parse dates (strings / Excel serials) to ISO, map cold_chain Yes/No to 1/0. No de-duplication (history preserved)."
+  - id: load
+    file: dags/vendor_prices/pipeline.py
+    function: load
+    description: "Stamp loaded_at (UTC ISO-8601 timestamp of the run), drop and recreate table vendor_prices in the SQLite warehouse, insert all rows."
+  - id: validate
+    file: dags/vendor_prices/pipeline.py
+    function: validate
+    description: "Run the validation checks against the loaded table; raise on any failure."
+validation_checks:
+  - id: row_count_matches_source
+    type: row_count
+    description: "Loaded rows equal price lines across all source workbooks."
+    params: {expected: "sum of source price lines", observed_at_build: 758}
+  - id: per_file_row_counts
+    type: row_count
+    description: "Rows per source_file equal price lines in that workbook."
+    params: {group_by: source_file}
+  - id: schema_columns
+    type: schema
+    description: "Table has the 12 source columns plus week, source_file, loaded_at, in order."
+    params: {columns: [supplier_code, supplier_name, product_code, product_name, pack_size, unit_price, currency, moq, effective_from, valid_until, cold_chain, notes, week, source_file, loaded_at]}
+  - id: required_not_null
+    type: not_null
+    description: "All columns except notes contain no NULLs."
+    params: {columns: [supplier_code, supplier_name, product_code, product_name, pack_size, unit_price, currency, moq, effective_from, valid_until, cold_chain, week, source_file, loaded_at]}
+  - id: unique_price_line_per_week
+    type: unique
+    description: "One price line per supplier/product per weekly sheet."
+    params: {key: [week, supplier_code, product_code]}
+  - id: all_weeks_preserved
+    type: expression
+    description: "Distinct week and distinct source_file counts equal number of source files (history kept)."
+    params: {expected: "number of source files", observed_at_build: 14}
+  - id: week_matches_file
+    type: expression
+    description: "week is contained in source_file name."
+    params: {expression: "instr(source_file, week) > 0"}
+  - id: positive_price_and_moq
+    type: range
+    description: "unit_price > 0 and moq > 0."
+    params: {columns: {unit_price: {min_exclusive: 0}, moq: {min_exclusive: 0}}}
+  - id: iso_dates
+    type: format
+    description: "effective_from and valid_until are ISO YYYY-MM-DD."
+    params: {columns: [effective_from, valid_until], pattern: "YYYY-MM-DD"}
+  - id: validity_window
+    type: expression
+    description: "valid_until >= effective_from."
+    params: {expression: "valid_until >= effective_from"}
+  - id: cold_chain_boolean
+    type: accepted_values
+    description: "cold_chain is 0 or 1."
+    params: {column: cold_chain, values: [0, 1]}
+  - id: loaded_at_utc
+    type: expression
+    description: "loaded_at is a single non-null UTC ISO-8601 timestamp per load."
+    params: {column: loaded_at, pattern: "YYYY-MM-DDTHH:MM:SS+00:00", distinct_values: 1}
+destination:
+  type: sqlite
+  table: vendor_prices
+  path: "${WAREHOUSE_DB}"
+build:
+  test_db: ./warehouse/test_build.db
+  attempts_used: 1
+  status: success
+version: 1

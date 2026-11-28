@@ -28,6 +28,7 @@ from dashboard.jobs import (GenConfig, JobManager, Refused, _walk, compose_brief
                             validate_request)
 from dashboard.pages import route, static_routes
 from dashboard.server import make_server
+from dashboard.tests.fake_airflow import FakeAirflow
 from healing.settings import Settings
 
 FAKE = Path(__file__).with_name("fake_generator.py")
@@ -77,11 +78,13 @@ def gw(tmp_path):
     con.commit()
     con.close()
     cfg = GenConfig(repo_root=repo, data_root=data, warehouse=wh, jobs_dir=tmp_path / "jobs",
-                    history=tmp_path / "history.jsonl", generator=gen("ok"), time_limit_s=60, kill_grace_s=1)
+                    history=tmp_path / "history.jsonl", generator=gen("ok"), time_limit_s=60, kill_grace_s=1,
+                    airflow_data=data, airflow_warehouse=wh, airflow_poll_s=0.02)
+    af = FakeAirflow(repo, data, wh)
     paths = Paths(manifests=repo / "manifests", warehouse=wh, incidents=tmp_path / "none.db",
                   proposals=tmp_path / "index.json", eval_summary=tmp_path / "none.md", site=tmp_path / "site",
                   orch_status=tmp_path / "st.json", history=cfg.history)
-    return SimpleNamespace(repo=repo, data=data, wh=wh, cfg=cfg, paths=paths, tmp=tmp_path)
+    return SimpleNamespace(repo=repo, data=data, wh=wh, cfg=cfg, paths=paths, tmp=tmp_path, af=af)
 
 
 def form(pid="customers_daily", sources=("crm/customers_*.csv",), prompt=PROMPT) -> dict:
@@ -156,7 +159,7 @@ def test_catalog_week_files_and_never_error_manifest(tmp_path):
 def test_validation_refuses(gw, f, needle):
     _, errors = validate_request(gw.cfg, f)
     assert any(needle in e for e in errors), errors
-    m = JobManager(gw.cfg)
+    m = JobManager(gw.cfg, gw.af)
     before = tree(gw.repo)
     with pytest.raises(Refused):
         m.submit(f)
@@ -180,7 +183,7 @@ def test_brief_keeps_prompt_and_names_id_and_sources(gw):
 # ------------------------------------------------------------------ happy path
 def test_happy_path_generates_loads_records_and_shows(gw, monkeypatch):
     monkeypatch.setenv("PIPELINE_AGENT_USER", "alice")
-    m = JobManager(gw.cfg)
+    m = JobManager(gw.cfg, gw.af)
     jid = m.submit(form())
     job = m.wait(jid, 60)
     assert job["status"] == "succeeded", job["error"]
@@ -189,13 +192,18 @@ def test_happy_path_generates_loads_records_and_shows(gw, monkeypatch):
     for f in ("dags/customers_daily/pipeline.py", "dags/customers_daily_dag.py", "manifests/customers_daily.yaml"):
         assert (gw.repo / f).exists()
     log = m.read_log(jid, 0, whole_lines=False)[0]
-    assert "FINAL STATUS: SUCCESS" in log and "loaded 12 rows" in log
+    assert "FINAL STATUS: SUCCESS" in log and "succeeded: 12 rows in 'customers_daily_t'" in log
+    run_id = f"dashboard__{jid}"
+    assert job["airflow_run_id"] == run_id and job["airflow_state"] == "success" and job["dag_enabled"] is True
+    assert [c[0] for c in gw.af.calls if c[0] in ("unpause", "trigger", "pause")] == ["unpause", "trigger"]
+    assert ("trigger", "customers_daily", run_id) in gw.af.calls and gw.af.paused == {"customers_daily": False}
     assert "error_manifest" not in log and "line withheld" in log
     hist = [json.loads(x) for x in gw.cfg.history.read_text().splitlines()]
     assert len(hist) == 1
     h = hist[0]
     assert (h["pipeline_id"], h["actor"], h["channel"], h["outcome"], h["rows_loaded"]) == \
         ("customers_daily", "alice", "dashboard", "succeeded", 12)
+    assert (h["airflow_run_id"], h["airflow_state"]) == (run_id, "success")
     assert h["sources"] == ["crm/customers_*.csv"] and h["prompt"] == PROMPT and h["started_at"] and h["finished_at"]
     code, html = route(gw.paths, "/pipeline/customers_daily", {}, live=True)
     assert code == 200 and "Created by <b>alice</b> via dashboard" in html and PROMPT in html
@@ -212,7 +220,7 @@ def test_happy_path_generates_loads_records_and_shows(gw, monkeypatch):
     ("report_fail", "FINAL STATUS: FAILED could not infer a key"),
     ("crash", "exited with code 3"),
     ("no_status", "without reporting"),
-    ("bad_load", "Loading failed at step 'load'"),
+    ("bad_load", "The Airflow run failed at task 'load'"),
     ("touch", "changed existing files"),
     ("table_clash", "already exists in the warehouse"),
 ])
@@ -220,7 +228,7 @@ def test_failure_restores_dags_and_manifests(gw, mode, needle):
     gw.cfg.generator = gen(mode)
     before = tree(gw.repo)
     tables_before = tables(gw.wh)
-    m = JobManager(gw.cfg)
+    m = JobManager(gw.cfg, gw.af)
     jid = m.submit(form())
     job = m.wait(jid, 60)
     assert job["status"] == "failed" and needle in job["error"], job["error"]
@@ -238,7 +246,7 @@ def test_failure_restores_dags_and_manifests(gw, mode, needle):
 def test_cancel_stops_process_group_and_restores(gw):
     gw.cfg.generator = gen("sleep")
     before = tree(gw.repo)
-    m = JobManager(gw.cfg)
+    m = JobManager(gw.cfg, gw.af)
     jid = m.submit(form())
     until(lambda: "working 3" in m.read_log(jid)[0])
     pid = m.get(jid)["pid"]
@@ -255,7 +263,7 @@ def test_time_limit_fails_and_restores(gw):
     gw.cfg.generator = gen("sleep")
     gw.cfg.time_limit_s = 1.0
     before = tree(gw.repo)
-    m = JobManager(gw.cfg)
+    m = JobManager(gw.cfg, gw.af)
     job = m.wait(m.submit(form()), 30)
     assert job["status"] == "failed" and "Time limit" in job["error"]
     assert tree(gw.repo) == before
@@ -263,7 +271,7 @@ def test_time_limit_fails_and_restores(gw):
 
 def test_second_job_refused_while_one_runs(gw):
     gw.cfg.generator = gen("sleep")
-    m = JobManager(gw.cfg)
+    m = JobManager(gw.cfg, gw.af)
     jid = m.submit(form())
     with pytest.raises(Refused) as ex:
         m.submit(form(pid="other_one"))
@@ -292,7 +300,7 @@ def test_restart_mid_job_marks_interrupted_and_restores(gw):
     jid = Crashes(gw.cfg).submit(form())
     until(lambda: (gw.repo / "manifests" / "customers_daily.yaml").exists())
     assert json.loads((gw.cfg.jobs_dir / jid / "job.json").read_text())["status"] == "generating"
-    m2 = JobManager(gw.cfg)                                           # server restart
+    m2 = JobManager(gw.cfg, gw.af)                                           # server restart
     job = m2.get(jid)
     assert job["status"] == "interrupted" and "server stopped" in job["error"]
     procs[0].wait(10)                                                 # orphan was stopped
@@ -305,7 +313,7 @@ def test_restart_mid_job_marks_interrupted_and_restores(gw):
 def test_prompt_with_shell_metacharacters_is_data(gw):
     nasty = ('Load customers"; touch PWNED; $(touch PWNED2) `touch PWNED3` && echo $HOME | tee x \' ; '
              "rm -rf ./dags & > /dev/null\nsecond line \\n {braces} %s")
-    m = JobManager(gw.cfg)
+    m = JobManager(gw.cfg, gw.af)
     jid = m.submit(form(prompt=nasty))
     job = m.wait(jid, 60)
     assert job["status"] == "succeeded", job["error"]
@@ -319,7 +327,7 @@ def test_prompt_with_shell_metacharacters_is_data(gw):
 # ------------------------------------------------------------------ HTTP
 @pytest.fixture
 def server(gw):
-    m = JobManager(gw.cfg)
+    m = JobManager(gw.cfg, gw.af)
     srv = make_server(gw.paths, Settings(), 0, jobs=m)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield gw, m, srv.server_address[1]
@@ -357,7 +365,8 @@ def test_generate_over_http_end_to_end(server):
     m.wait(jid, 60)
     status, _, html = _req(port, "GET", loc)
     assert status == 200 and "succeeded" in html and 'href="/pipeline/customers_daily"' in html
-    assert "was not triggered" in html
+    assert "was not triggered" not in html and f"dashboard__{jid}" in html and "runs it on its schedule" in html
+    assert "/opt/testbed/data_clean" in html                                  # which path the Airflow run read
     poll = json.loads(_req(port, "GET", f"{loc}/poll?offset=0")[2])
     assert poll["status"] == "succeeded" and poll["terminal"] and "FINAL STATUS: SUCCESS" in poll["log"]
     assert json.loads(_req(port, "GET", f"{loc}/poll?offset={poll['offset']}")[2])["log"] == ""
@@ -429,7 +438,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_job_passes_its_own_data_root_to_the_agent(gw):
-    m = JobManager(gw.cfg)
+    m = JobManager(gw.cfg, gw.af)
     jid = m.submit(form())
     job = m.wait(jid, 60)
     assert job["status"] == "succeeded", job["error"]
@@ -477,7 +486,7 @@ def test_answer_key_in_data_root_refuses_generation(gw):
     (gw.data / "erp" / "deep" / "error_manifest.json").write_text('{"secret": true}')
     _, errors = validate_request(gw.cfg, form())
     assert any("answer key" in e for e in errors)
-    m = JobManager(gw.cfg)
+    m = JobManager(gw.cfg, gw.af)
     before = tree(gw.repo)
     with pytest.raises(Refused) as ex:
         m.submit(form())
@@ -489,7 +498,7 @@ def test_answer_key_in_data_root_refuses_generation(gw):
 
 def test_answer_key_appearing_after_submit_stops_before_agent_starts(gw):
     import dashboard.jobs as J
-    m = JobManager(gw.cfg)
+    m = JobManager(gw.cfg, gw.af)
     orig = J.snapshot
 
     def snap(root, jd):                      # the file shows up between validation and launch

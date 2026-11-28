@@ -12,6 +12,7 @@ import pytest
 from dashboard.data import Paths
 from dashboard.jobs import GenConfig, JobManager
 from dashboard.server import make_server
+from dashboard.tests.fake_airflow import FakeAirflow
 from healing.heal import run_heal
 from healing.proposals import list_proposals
 from healing.tests.conftest import good_agent
@@ -28,7 +29,8 @@ def live(toy, tmp_path):
                   orch_status=tmp_path / "st.json", history=tmp_path / "history.jsonl")
     jobs = JobManager(GenConfig(repo_root=s.repo_root, data_root=tmp_path / "data", warehouse=tmp_path / "none.db",
                                 jobs_dir=tmp_path / "jobs", history=tmp_path / "history.jsonl",
-                                generator=[sys.executable, "-c", "raise SystemExit('generator not configured')"]))
+                                generator=[sys.executable, "-c", "raise SystemExit('generator not configured')"]),
+                     FakeAirflow())
     srv = make_server(paths, s, 0, jobs=jobs)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield toy, case.proposal_id, srv.server_address[1]

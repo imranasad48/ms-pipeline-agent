@@ -20,7 +20,7 @@ import sys
 import time
 from pathlib import Path
 
-PIPELINE = '''import csv, glob, json, os, sqlite3
+PIPELINE = '''import csv, datetime, glob, json, os, sqlite3
 
 TABLE = "{table}"
 
@@ -45,8 +45,9 @@ def load():
     rows = json.load(open(_stage("t.json")))
     con = sqlite3.connect(os.environ["WAREHOUSE_DB"])
     con.execute(f"DROP TABLE IF EXISTS {{TABLE}}")
-    con.execute(f"CREATE TABLE {{TABLE}} (id TEXT, name TEXT)")
-    con.executemany(f"INSERT INTO {{TABLE}} VALUES (?,?)", [(r["id"], r["name"]) for r in rows])
+    con.execute(f"CREATE TABLE {{TABLE}} (id TEXT, name TEXT, loaded_at TEXT)")
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+    con.executemany(f"INSERT INTO {{TABLE}} VALUES (?,?,?)", [(r["id"], r["name"], now) for r in rows])
     con.commit(); con.close()
 
 def validate():

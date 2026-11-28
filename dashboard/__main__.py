@@ -76,6 +76,8 @@ def main(argv=None) -> int:
     print(f"live dashboard http://localhost:{a.port}  (rebuilds per request; Ctrl-C to stop)")
     print(f"  new pipelines: data root {jobs.cfg.data_root}  ->  warehouse {jobs.cfg.warehouse}  "
           f"(time limit {jobs.cfg.time_limit_s / 60:g} min; generator: {' '.join(jobs.cfg.generator_argv())})")
+    print(f"  Airflow runs read {jobs.cfg.airflow_data_container} (host {jobs.cfg.airflow_data}) and write "
+          f"{jobs.cfg.airflow_warehouse}")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

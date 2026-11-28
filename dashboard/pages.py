@@ -17,7 +17,8 @@ from .data import (INCIDENT_FILTERS, SEVERITIES, Paths, assemble, filter_inciden
                    load_pipelines, parse_incident_filters, summarize_audit)
 from .governance import (assemble_governance, audit_stats, audit_table, load_contracts, provenance_html,
                          render_governance)
-from .layout import (Links, Raw, a, bars, code, fmt_int, fmt_ts, heading, not_found, page, sev, static_name,
+from .airflow import PROTECTED
+from .layout import (Links, Raw, a, bars, code, fmt_int, fmt_ts, fmt_utc, heading, not_found, page, sev, static_name,
                      status_class, table, tag)
 from .render import INCIDENT_HEADERS, incident_rows, pipelines_table, render
 
@@ -34,7 +35,78 @@ def _vc(df: pd.DataFrame, col: str) -> dict:
 
 
 # ------------------------------------------------------------------ pipelines
-def render_pipelines(d: dict, contracts: list[dict], now=None, live: bool = False) -> str:
+def loaded_cell(ts) -> Raw:
+    """loaded_at is stored in UTC: show it with the zone, never as if it were local time."""
+    return (Raw(f'<span class="nowrap">{e(fmt_utc(ts))}</span>') if ts
+            else Raw('<span class="muted">n/a</span>'))
+
+
+def airflow_cell(pid: str, status: dict | None) -> Raw:
+    """Pipelines-table cell from the cached Airflow status (never a live Airflow call)."""
+    if status is None:
+        return Raw('<span class="muted">live only</span>')
+    dags = status.get("dags")
+    if dags is None:
+        return Raw(f'<span class="muted" title="{e(status.get("error") or "")}">'
+                   f'{"unavailable" if status.get("error") else "checking&hellip;"}</span>')
+    i = dags.get(pid)
+    if i is None:
+        return Raw('<span class="muted">not in Airflow</span>')
+    out = str(tag("paused", "muted") if i.get("paused") else tag("enabled", "ok"))
+    if i.get("last_run_state"):
+        out += f' <span class="muted">last run</span> {tag(i["last_run_state"])}'
+    return Raw(out)
+
+
+def airflow_card(pid: str, status: dict | None, live: bool, generating: dict | None, has_dag: bool) -> str:
+    h = '<section class="card"><h2>Airflow</h2>'
+    if status is None:
+        return h + ('<p class="muted">Airflow status is shown by the live server '
+                    '(<code>python -m dashboard serve</code>).</p></section>')
+    dags, err = status.get("dags"), status.get("error") or ""
+    i = (dags or {}).get(pid)
+    if dags is None:
+        kv = f'<p class="muted">{e("Airflow is unavailable: " + err if err else "Checking Airflow status…")}</p>'
+    elif i is None:
+        kv = f'<p class="muted">Airflow has not registered a DAG <code>{e(pid)}</code> yet.</p>'
+    else:
+        last = (f'{tag(i["last_run_state"])} <span class="nowrap">{e(fmt_utc(i.get("last_run_time")))}</span> '
+                f'<code class="small">{e(i.get("last_run_id") or "")}</code>' if i.get("last_run_state")
+                else '<span class="muted">never run</span>')
+        kv = ('<dl class="kv">'
+              f'<dt>DAG</dt><dd>{tag("paused", "muted") if i.get("paused") else tag("enabled", "ok")}'
+              f'{" runs on its schedule" if not i.get("paused") else " not scheduled"}</dd>'
+              f'<dt>schedule</dt><dd>{e(i.get("schedule") or "-")}</dd>'
+              f'<dt>last run</dt><dd>{last}</dd></dl>')
+    age = status.get("age_s")
+    note = (f'<p class="muted small">Status as of {int(age)} s ago'
+            + (f'; latest refresh failed: {e(err)}' if err and dags is not None else "") + ".</p>"
+            if age is not None else "")
+    ctl = ""
+    if not live:
+        pass
+    elif pid in PROTECTED:
+        ctl = '<p class="muted">This is one of the original DAGs; the dashboard does not switch it on or off.</p>'
+    elif not has_dag:
+        ctl = f'<p class="muted">No <code>dags/{e(pid)}_dag.py</code>, so there is nothing to enable.</p>'
+    elif generating:
+        ctl = (f'<p class="warn">A job is running (<a href="/jobs/{e(generating["job_id"])}">'
+               f'{e(generating["pipeline_id"])}</a>); try again after it finishes.</p>')
+    else:
+        ctl = ('<details class="confirm"><summary class="btn approve">Enable schedule and run now&hellip;</summary>'
+               '<div class="confirm-box">'
+               f'<p><b>This switches the DAG <code>{e(pid)}</code> on in Airflow</b>: from now on Airflow runs it on '
+               'its schedule. It also triggers one run now and follows it on a job page.</p>'
+               '<p>The dashboard first checks that Airflow can import the DAG and that catchup is off. '
+               'If the run fails, the DAG is paused again.</p>'
+               f'<form method="post" action="/pipeline/{e(pid)}/orchestrate">'
+               '<button class="approve" type="submit">Confirm: enable and run now</button></form>'
+               '</div></details>')
+    return h + kv + note + ctl + "</section>"
+
+
+def render_pipelines(d: dict, contracts: list[dict], now=None, live: bool = False,
+                     airflow: dict | None = None) -> str:
     links = Links(live, {p["pipeline_id"] for p in d["pipelines"]})
     checks = {c["pipeline_id"]: len(c["checks"]) for c in contracts}
     props: dict = {}
@@ -44,18 +116,20 @@ def render_pipelines(d: dict, contracts: list[dict], now=None, live: bool = Fals
     rows = [[a(links.pipeline(p["pipeline_id"]), p["pipeline_id"]), f"v{p['version']}",
              Raw(", ".join(f"<code>{e(x)}</code>" for x in p["sources"]) or "&mdash;"), code(p["destination"]),
              checks.get(p["pipeline_id"], 0),
-             fmt_ts(p["last_loaded_at"]) if p["last_loaded_at"] else Raw('<span class="muted">n/a</span>'),
+             loaded_cell(p["last_loaded_at"]),
              fmt_int(p["rows"]), open_by.get(p["pipeline_id"], 0), props.get(p["pipeline_id"], 0),
+             airflow_cell(p["pipeline_id"], airflow),
              a(links.governance(p["pipeline_id"]), "contract")] for p in d["pipelines"]]
     body = heading("Pipelines", "One row per manifest in <code>manifests/</code>.") + (
         '<section class="card">' + table(
             ["pipeline", "version", "sources", "destination", "checks", "last load", "rows", "open incidents",
-             "proposals", ""], rows, {4, 6, 7, 8}, empty="No manifests found.") + "</section>")
+             "proposals", "airflow", ""], rows, {4, 6, 7, 8}, empty="No manifests found.") + "</section>")
     return page("Pipelines", "pipelines", body, links, now)
 
 
 def render_pipeline(pid: str, d: dict, contracts: list[dict], df: pd.DataFrame, now=None,
-                    live: bool = False) -> str | None:
+                    live: bool = False, airflow: dict | None = None, generating: dict | None = None,
+                    has_dag: bool = True) -> str | None:
     """Per-pipeline page, or None when `pid` is not a manifest."""
     p = next((x for x in d["pipelines"] if x["pipeline_id"] == pid), None)
     if p is None:
@@ -74,7 +148,7 @@ def render_pipeline(pid: str, d: dict, contracts: list[dict], df: pd.DataFrame, 
                 f'<dt>manifest</dt><dd><code>manifests/{e(c["file"])}</code></dd></dl>'
                 f'<p><a href="{e(links.governance(pid))}">Full contract on Governance &rarr;</a></p></section>')
     load = ('<section class="card"><h2>Last load</h2><dl class="kv">'
-            f'<dt>last load</dt><dd>{e(fmt_ts(p["last_loaded_at"])) if p["last_loaded_at"] else "<span class=muted>n/a</span>"}</dd>'
+            f'<dt>last load</dt><dd>{loaded_cell(p["last_loaded_at"])}</dd>'
             f'<dt>rows</dt><dd>{fmt_int(p["rows"])}</dd>'
             f'<dt>open incidents</dt><dd>{len(op)}</dd>'
             f'<dt>proposals</dt><dd>{len(hist)}</dd></dl>'
@@ -93,7 +167,8 @@ def render_pipeline(pid: str, d: dict, contracts: list[dict], df: pd.DataFrame, 
             + f'<p class="muted">Airflow DAG file: <code>dags/{e(pid)}_dag.py</code></p></section>')
     brief = str(p["brief"] or "").split("\n\n")[0]
     body = (heading(pid, e(brief) if brief else "")
-            + f'<div class="grid two">{contract}{load}</div>' + prov + incidents + history)
+            + f'<div class="grid two">{contract}{load}</div>'
+            + airflow_card(pid, airflow, live, generating, has_dag) + prov + incidents + history)
     return page(pid, "pipelines", body, links, now)
 
 
@@ -204,7 +279,8 @@ def _q(query: dict, k: str) -> str:
 
 def route(paths: Paths, path: str, query: dict | None = None, live: bool = True, now: dt.datetime | None = None,
           flash: str = "", flash_error: bool = False,
-          generating: dict | None = None) -> tuple[int, str]:
+          generating: dict | None = None, airflow: dict | None = None) -> tuple[int, str]:
+    """`airflow` is the cached status (StatusCache.get()); None in the static build."""
     """(status, html) for a logical path; unknown paths and pipeline ids give a 404 page."""
     query = query or {}
     path = urllib.parse.unquote(path.rstrip("/")) or "/"
@@ -220,10 +296,12 @@ def route(paths: Paths, path: str, query: dict | None = None, live: bool = True,
     if path == "/proposals":
         return 200, render_proposals(d["audit"], _q(query, "status").strip(), pipes, now, live)
     if path == "/pipelines":
-        return 200, render_pipelines(d, load_contracts(paths.manifests), now, live)
+        return 200, render_pipelines(d, load_contracts(paths.manifests), now, live, airflow)
     if path.startswith("/pipeline/"):
         pid = path[len("/pipeline/"):]
-        html = render_pipeline(pid, d, load_contracts(paths.manifests), load_incidents(paths.incidents), now, live)
+        has_dag = (Path(paths.manifests).parent / "dags" / f"{pid}_dag.py").is_file()
+        html = render_pipeline(pid, d, load_contracts(paths.manifests), load_incidents(paths.incidents), now, live,
+                               airflow, generating, has_dag)
         if html is not None:
             return 200, html
         return 404, not_found(f"No pipeline “{pid}”. Known pipelines: {', '.join(pipes) or 'none'}.",

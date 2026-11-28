@@ -1,0 +1,104 @@
+manifest_version: 1
+pipeline_id: crm_customers
+brief: "Load the daily CRM customer files into the warehouse as a customer dimension: one row per customer. If the same customer appears in more than one daily file, keep the most recent version of that customer. Keep all source columns with sensible types and record which file each row came from. Name the table dim_customers."
+created: "2026-11-28"
+sources:
+  - id: crm_customers_csv
+    format: csv
+    path_pattern: "${DATA_ROOT}/crm/customers_*.csv"
+    expected_schema:
+      customer_id: string
+      customer_name: string
+      customer_type: string
+      city: string
+      address: string
+      postal_code: string
+      contact_person: string
+      email: string
+      phone: string
+      drug_licence_no: string
+      cold_chain_capable: int64
+      credit_limit_pkr: int64
+      payment_terms_days: int64
+      assigned_warehouse_id: string
+      registered_on: date
+      is_active: int64
+    observed:
+      files: 90
+      total_rows: 18000
+      null_rates:
+        customer_id: 0.0
+        customer_name: 0.0
+        customer_type: 0.0
+        city: 0.0
+        address: 0.0
+        postal_code: 0.0
+        contact_person: 0.0
+        email: 0.0
+        phone: 0.0
+        drug_licence_no: 0.0
+        cold_chain_capable: 0.0
+        credit_limit_pkr: 0.0
+        payment_terms_days: 0.0
+        assigned_warehouse_id: 0.0
+        registered_on: 0.0
+        is_active: 0.0
+steps:
+  - id: extract
+    file: dags/crm_customers/pipeline.py
+    function: extract
+    description: "Read every crm/customers_YYYY-MM-DD.csv as text (keeps leading zeros), tag each row with source_file and source_date from the file name, stage the combined data."
+  - id: transform
+    file: dags/crm_customers/pipeline.py
+    function: transform
+    description: "Trim strings, cast flags/amounts/terms to integers and registered_on to ISO date, keep the most recent version of each customer_id (newest file, then last row in that file)."
+  - id: load
+    file: dags/crm_customers/pipeline.py
+    function: load
+    description: "Full reload: drop and recreate dim_customers (customer_id PRIMARY KEY) in the sqlite warehouse and insert all rows."
+  - id: validate
+    file: dags/crm_customers/pipeline.py
+    function: validate
+    description: "Run the validation checks against the loaded table and the source files; raise on any failure."
+validation_checks:
+  - id: row_count_matches_distinct_customers
+    type: row_count
+    description: "Row count equals the number of distinct customer_id across all source files and is > 0."
+    params: {table: dim_customers, expected: "count(distinct customer_id) over crm/customers_*.csv"}
+  - id: customer_id_unique
+    type: unique
+    description: "customer_id is unique (one row per customer)."
+    params: {table: dim_customers, columns: [customer_id]}
+  - id: schema_columns
+    type: schema
+    description: "Columns are exactly the 16 source columns followed by source_file and source_date, in order."
+    params: {table: dim_customers, columns: [customer_id, customer_name, customer_type, city, address, postal_code, contact_person, email, phone, drug_licence_no, cold_chain_capable, credit_limit_pkr, payment_terms_days, assigned_warehouse_id, registered_on, is_active, source_file, source_date]}
+  - id: not_null_all_columns
+    type: not_null
+    description: "No NULLs in any column (source null rate is 0 for every column)."
+    params: {table: dim_customers, columns: all}
+  - id: latest_version_kept
+    type: custom
+    description: "Each row's source_file is the newest file containing that customer_id, and its values equal that file's row."
+    params: {table: dim_customers, key: customer_id, order_by: source_date}
+  - id: flags_boolean
+    type: accepted_values
+    description: "cold_chain_capable and is_active are 0 or 1."
+    params: {table: dim_customers, columns: [cold_chain_capable, is_active], values: [0, 1]}
+  - id: postal_code_text_5
+    type: format
+    description: "postal_code is stored as text of length 5 (leading zeros preserved)."
+    params: {table: dim_customers, column: postal_code, length: 5, sql_type: TEXT}
+  - id: registered_on_valid_date
+    type: format
+    description: "registered_on is a valid YYYY-MM-DD date."
+    params: {table: dim_customers, column: registered_on, format: "%Y-%m-%d"}
+destination:
+  type: sqlite
+  table: dim_customers
+  path: "${WAREHOUSE_DB}"
+build:
+  test_db: ./warehouse/test_build.db
+  attempts_used: 1
+  status: success
+version: 1

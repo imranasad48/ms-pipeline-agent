@@ -95,7 +95,8 @@ def render_new(jobs: JobManager, manifests_dir, pipelines: set, form: dict | Non
     active = jobs.active()
     s = [heading("New pipeline", f"Pick sources under the data root <code>{e(str(cfg.data_root))}</code>, "
                                  "name the pipeline and describe what it should produce. The generation agent "
-                                 "builds it, then it is loaded once into the warehouse.")]
+                                 "builds it, then the dashboard switches its Airflow DAG on and triggers the first run; Airflow "
+                                 "runs it daily from then on.")]
     if active:
         s.append(f'<section class="card notice warn">A generation job is running for '
                  f'<b>{e(active["pipeline_id"])}</b> &mdash; <a href="/jobs/{e(active["job_id"])}">watch it</a>. '
@@ -158,23 +159,37 @@ def job_head(job: dict, pipelines: set, now=None) -> str:
     """The part of the job page that changes while it runs (also sent with each poll)."""
     links = Links(True, pipelines | ({job["pipeline_id"]} if job["status"] == "succeeded" else set()))
     st = job["status"]
+    gen = job.get("kind", "generate") == "generate"
     out = []
     if st in ("failed", "interrupted", "cancelled") and job.get("error"):
+        undo = []
+        if job.get("airflow_state") is not None or job.get("airflow_schedule") is not None:
+            undo.append(f'the Airflow DAG <code>{e(job["pipeline_id"])}</code> is paused')
+        if gen:
+            undo.append("dags/ and manifests/ were restored to how they were before this job"
+                        + (f'; {len(job["quarantined"])} file(s) it wrote were moved to '
+                           f'<code>dashboard/jobs/{e(job["job_id"])}/quarantine/</code>' if job.get("quarantined") else ""))
         out.append(f'<section class="card notice {"err" if st == "failed" else "warn"}"><b>'
                    f'{"Failed" if st == "failed" else st.capitalize()}:</b> {e(job["error"])}'
-                   + ("<br><span class=muted>dags/ and manifests/ were restored to how they were before this job"
-                      + (f'; {len(job["quarantined"])} file(s) it wrote were moved to '
-                         f'<code>dashboard/jobs/{e(job["job_id"])}/quarantine/</code>' if job.get("quarantined") else "")
-                      + ".</span>") + "</section>")
+                   + (f'<br><span class=muted>{"; ".join(undo)}.</span>' if undo else "") + "</section>")
+    if job.get("airflow_log_tail") and st != "succeeded":
+        task = job.get("airflow_failed_task")
+        out.append('<section class="card"><h2>Airflow ' + (f'task <code>{e(task)}</code> ' if task else "")
+                   + 'log (tail)</h2>' + f'<pre class="log small">{e(job["airflow_log_tail"])}</pre></section>')
     if st == "succeeded":
-        out.append(f'<section class="card notice"><b>Pipeline {e(job["pipeline_id"])} is ready.</b> '
-                   f'Loaded {job.get("rows_loaded") or 0:,} rows into <code>{e(job.get("destination_table") or "")}</code>. '
+        tbl = e(job.get("destination_table") or "")
+        what = (f'<b>Pipeline {e(job["pipeline_id"])} is ready.</b> ' if gen
+                else f'<b>DAG {e(job["pipeline_id"])} is enabled.</b> ')
+        out.append(f'<section class="card notice">{what}'
+                   f'Airflow run <code>{e(job.get("airflow_run_id") or "")}</code> succeeded and the table '
+                   f'<code>{tbl}</code> now has {job.get("rows_loaded") or 0:,} rows. '
                    f'<a href="{e(links.pipeline(job["pipeline_id"]) or "#")}">Open the pipeline page &rarr;</a><br>'
-                   f'<span class="muted">The Airflow DAG is <code>dags/{e(job["pipeline_id"])}_dag.py</code>; '
-                   'it was not triggered. Detection was not run.</span></section>')
+                   f'<span class="muted">The DAG is switched on and Airflow runs it on its schedule from now on '
+                   f'({e(job.get("airflow_schedule") or "daily")}, catchup off). Detection was not run.</span></section>')
     for w in job.get("warnings") or []:
         out.append(f'<section class="card notice warn">{e(w)}</section>')
-    steps = ["queued", "generating", "loading", "succeeded"]
+    steps = (["queued", "generating", "orchestrating", "succeeded"] if gen
+             else ["queued", "orchestrating", "succeeded"])
     prog = " &rarr; ".join(f'<b>{x}</b>' if x == st else f'<span class="muted">{x}</span>' for x in steps)
     cancel = (f'<form method="post" action="/jobs/{e(job["job_id"])}/cancel" class="inline">'
               '<button class="reject" type="submit">Cancel job</button></form>') if st in ACTIVE else ""
@@ -189,11 +204,25 @@ def job_head(job: dict, pipelines: set, now=None) -> str:
                f'<dt>started by</dt><dd>{e(job.get("actor", ""))} via dashboard</dd>'
                f'<dt>started</dt><dd class="nowrap">{e(fmt_ts(job.get("started_at") or job.get("created_at")))}</dd>'
                f'<dt>finished</dt><dd class="nowrap">{e(fmt_ts(job.get("finished_at")) or "-")}</dd>'
-               f'<dt>exit code</dt><dd>{e(str(job.get("exit_code") if job.get("exit_code") is not None else "-"))}</dd>'
-               f'<dt>data root</dt><dd><code>{e(job.get("data_root", ""))}</code></dd>'
+               + (f'<dt>agent exit code</dt><dd>{e(str(job.get("exit_code") if job.get("exit_code") is not None else "-"))}</dd>'
+                  f'<dt>agent data root</dt><dd><code>{e(job.get("data_root", ""))}</code></dd>' if gen else "")
+               + f'<dt>Airflow DAG</dt><dd>{_dag_state(job)}</dd>'
+               f'<dt>Airflow run</dt><dd><code>{e(job.get("airflow_run_id") or "-")}</code> '
+               f'{tag(job["airflow_state"]) if job.get("airflow_state") else "<span class=muted>not started</span>"}</dd>'
+               f'<dt>schedule</dt><dd>{e(job.get("airflow_schedule") or "-")}'
+               f'{", catchup " + ("on" if job["airflow_catchup"] else "off") if job.get("airflow_catchup") is not None else ""}</dd>'
+               f'<dt>Airflow reads</dt><dd><code>{e(job.get("airflow_data") or "-")}</code></dd>'
                f'<dt>warehouse</dt><dd><code>{e(job.get("warehouse", ""))}</code></dd>'
                '</dl></section>')
     return "".join(out)
+
+
+def _dag_state(job: dict) -> str:
+    if job.get("dag_enabled"):
+        return tag("enabled", "ok") + " runs on its schedule"
+    if job.get("airflow_schedule") is None and job["status"] in ACTIVE:
+        return '<span class="muted">not reached yet</span>'
+    return tag("paused", "muted") if job.get("airflow_schedule") is not None else '<span class="muted">not touched</span>'
 
 
 def render_job(jobs: JobManager, job_id: str, pipelines: set, now=None) -> str | None:
@@ -203,15 +232,17 @@ def render_job(jobs: JobManager, job_id: str, pipelines: set, now=None) -> str |
     terminal = job["status"] not in ACTIVE
     text, off = jobs.read_log(job_id, 0, 5_000_000, whole_lines=not terminal)
     links = Links(True, pipelines)
-    body = (heading(f"Job {job_id}", f'Generating <b>{e(job["pipeline_id"])}</b>. '
-                                     '<a href="/jobs">All jobs</a>')
+    gen = job.get("kind", "generate") == "generate"
+    what = (f'Generating <b>{e(job["pipeline_id"])}</b>, then running it through Airflow.' if gen
+            else f'Enable schedule and run now: <b>{e(job["pipeline_id"])}</b> through Airflow.')
+    body = (heading(f"Job {job_id}", what + ' <a href="/jobs">All jobs</a>')
             + f'<div id="job" data-poll="/jobs/{e(job_id)}/poll" data-offset="{off}" data-terminal="{int(terminal)}">'
             + f'<div id="job-head">{job_head(job, pipelines, now)}</div>'
-            + '<section class="card"><h2>Prompt</h2>'
-            + f'<blockquote class="prompt">{e(job["prompt"])}</blockquote>'
-            + '<details><summary>full brief sent to the agent</summary>'
-            + f'<pre class="log small">{e(job["brief"])}</pre></details></section>'
-            + '<section class="card"><h2>Agent output</h2>'
+            + ('<section class="card"><h2>Prompt</h2>'
+               + f'<blockquote class="prompt">{e(job["prompt"])}</blockquote>'
+               + '<details><summary>full brief sent to the agent</summary>'
+               + f'<pre class="log small">{e(job["brief"])}</pre></details></section>' if gen else "")
+            + f'<section class="card"><h2>{"Agent and Airflow output" if gen else "Airflow output"}</h2>'
             + f'<pre id="log" class="log">{e(text)}</pre></section></div>')
     return page(f"Job {job['pipeline_id']}", "new", body, links, now, body_end=JOB_JS)
 
