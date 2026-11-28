@@ -1,7 +1,9 @@
 """CLI:  python -m dashboard {build,serve,dump}
 
-build  -> dashboard/site/index.html + governance.html (static, self-contained)
-serve  -> live server on http://localhost:8099 (+ /governance): rebuilt per request, auto-refresh, approve/reject
+build  -> dashboard/site/*.html: every page that can be static (index, pipelines, pipeline-<id>,
+          incidents[-<severity>], proposals[-<status>], governance), relative links between them
+serve  -> live server on http://localhost:8099: /, /pipelines, /pipeline/<id>, /incidents, /proposals,
+          /governance; rebuilt per request, approve (two-step) / reject
 dump   -> the same data as plain text (what the page shows), for terminals and tests
 """
 from __future__ import annotations
@@ -11,16 +13,13 @@ import sys
 from pathlib import Path
 
 from .data import Paths, assemble
-from .governance import assemble_governance, render_governance
-from .render import render
+from .pages import build_site
 
 
 def build(paths: Paths) -> Path:
-    paths.site.mkdir(parents=True, exist_ok=True)
-    out = paths.site / "index.html"
-    out.write_text(render(assemble(paths)))
-    (paths.site / "governance.html").write_text(render_governance(assemble_governance(paths)))
-    return out
+    """Write every static page; returns the path of index.html."""
+    build_site(paths)
+    return paths.site / "index.html"
 
 
 def dump(paths: Paths) -> str:
@@ -64,12 +63,13 @@ def main(argv=None) -> int:
         print(dump(paths))
         return 0
     if a.cmd == "build":
-        print(f"built {build(paths)}")
+        out = build(paths)
+        print(f"built {out} (+ {len(list(paths.site.glob('*.html'))) - 1} more pages in {paths.site})")
         return 0
     from healing.settings import Settings
     from .server import make_server
     srv = make_server(paths, Settings(), a.port)
-    print(f"live dashboard http://localhost:{a.port}  (rebuilds per request, refreshes every 5s; Ctrl-C to stop)")
+    print(f"live dashboard http://localhost:{a.port}  (rebuilds per request; Ctrl-C to stop)")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

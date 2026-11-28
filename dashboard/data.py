@@ -97,13 +97,37 @@ def summarize_incidents(df: pd.DataFrame) -> dict:
     return {"total": int(len(df)), "open": int(len(op)), "status_counts": status_counts,
             "by_severity": {s: sev.get(s, 0) for s in SEVERITIES},
             "by_family": dict(sorted(counts("check_family").items(), key=lambda kv: -kv[1])),
-            "by_source": sources,
+            "by_source": sources, "by_pipeline": counts("pipeline_id"),
             "date_range": ([str(df["business_date"].min()), str(df["business_date"].max())]
                            if len(df) else None),
             "recent_open": newest.to_dict("records"),
             "recent_closed": (df[df["status"] != "open"].sort_values(
                 ["business_date", "detected_at"], ascending=False).head(10).to_dict("records")
                 if len(df) else [])}
+
+
+INCIDENT_FILTERS = ("severity", "pipeline", "family", "date")
+_FILTER_COLUMN = {"severity": "severity", "pipeline": "pipeline_id", "family": "check_family",
+                  "date": "business_date"}
+
+
+def parse_incident_filters(query: dict) -> dict:
+    """{'severity': ['warn'], ...} (parse_qs shape) or plain str values -> {name: value}, known keys only."""
+    out = {}
+    for k in INCIDENT_FILTERS:
+        v = query.get(k)
+        v = (v[0] if v else "") if isinstance(v, list) else (v or "")
+        if str(v).strip():
+            out[k] = str(v).strip()
+    return out
+
+
+def filter_incidents(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
+    """Rows of `df` matching every filter exactly (unknown values simply match nothing)."""
+    for k, v in filters.items():
+        if k in _FILTER_COLUMN and len(df):
+            df = df[df[_FILTER_COLUMN[k]].astype(str) == v]
+    return df
 
 
 # ---------------------------------------------------------------- proposals
@@ -169,6 +193,75 @@ def load_eval_summary(path: Path) -> dict | None:
     return {"generated": m.group(1) if m else "", "markdown": text}
 
 
+# -------------------------------------------------------------- audit trail
+NOT_RECORDED = "not recorded"
+
+
+def _read_json(path: Path) -> dict:
+    try:
+        return json.loads(Path(path).read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def _verdict_of(root: Path | None) -> str:
+    if root is None:
+        return NOT_RECORDED
+    try:
+        m = re.search(r"\*\*Verdict: (\S+)\*\*", (root / "proposal.md").read_text())
+    except OSError:
+        return NOT_RECORDED
+    return m.group(1) if m else NOT_RECORDED
+
+
+def load_audit(index_path: Path) -> list[dict]:
+    """Every proposal ever created, newest first: index.json entries plus any proposal
+    directory (live or _archive/) the index does not know about. Missing facts stay
+    'not recorded' -- nothing is inferred or backfilled."""
+    index_path = Path(index_path)
+    base = index_path.parent
+    idx = _read_json(index_path)
+    dirs: dict[str, Path] = {}
+    for sub in (base / "_archive", base):          # live dir wins over archive on a clash
+        if sub.is_dir():
+            for d in sub.iterdir():
+                if d.is_dir() and d.name.startswith("p-"):
+                    dirs[d.name] = d
+    rows = []
+    for pid in sorted(set(idx) | set(dirs)):
+        v, root = idx.get(pid, {}), dirs.get(pid)
+        case = _read_json(root / "case.json") if root else {}
+        inc = _read_json(root / "staging/case/incident.json") if root else {}
+        rej = _read_json(root / "rejection.json") if root else {}
+        dec = _read_json(root / "staging/agent_out/decision.json") if root else {}
+        check_id = v.get("check_id") or inc.get("check_id") or ""
+        rows.append({
+            "proposal_id": pid,
+            "created_at": v.get("created_at") or case.get("created_at") or NOT_RECORDED,
+            "pipeline_id": v.get("pipeline_id") or case.get("pipeline_id") or NOT_RECORDED,
+            "check_id": check_id, "check_kind": check_id.split(":")[0] or NOT_RECORDED,
+            "incident_id": v.get("incident_id") or case.get("incident_id") or NOT_RECORDED,
+            "decision": v.get("decision") or dec.get("decision") or NOT_RECORDED,
+            "verdict": _verdict_of(root),
+            "status": v.get("status") or "not in index",
+            "decided_by": v.get("decided_by") or rej.get("decided_by") or NOT_RECORDED,
+            "decided_via": v.get("decided_via") or rej.get("decided_via") or "",
+            "decided_at": v.get("decided_at") or rej.get("decided_at") or rej.get("rejected_at") or NOT_RECORDED,
+            "reason": v.get("reject_reason") or rej.get("reason") or "",
+            "human_decision": v.get("status") in ("APPLIED", "REJECTED"),
+        })
+    return sorted(rows, key=lambda r: (r["created_at"] if r["created_at"] != NOT_RECORDED else "", r["proposal_id"]),
+                  reverse=True)
+
+
+def summarize_audit(rows: list[dict]) -> dict:
+    n = lambda *st: sum(r["status"] in st for r in rows)  # noqa: E731
+    return {"total": len(rows), "applied": n("APPLIED"), "rejected": n("REJECTED"),
+            "failed_validation": n("FAILED_VALIDATION", "FAILED"), "escalated": n("ESCALATED"),
+            "awaiting": n("READY_FOR_APPROVAL")}
+
+
+
 # ------------------------------------------------------------------ one call
 def assemble(paths: Paths | None = None) -> dict:
     """Everything the page needs, as plain data."""
@@ -180,7 +273,11 @@ def assemble(paths: Paths | None = None) -> dict:
         r["incident_status"] = status_of.get(r["incident_id"], "")
     ready = [{**r, **load_proposal_detail(paths.proposals, r["proposal_id"])}
              for r in props if r["status"] == "READY_FOR_APPROVAL"]
-    return {"ready": ready, "orchestrator": load_orchestrator_status(paths.orch_status),
+    audit = load_audit(paths.proposals)
+    for r in audit:
+        r["detail"] = load_proposal_detail(paths.proposals, r["proposal_id"])
+    return {"audit": audit, "audit_counts": summarize_audit(audit),
+            "ready": ready, "orchestrator": load_orchestrator_status(paths.orch_status),
             "pipelines": load_pipelines(paths.manifests, paths.warehouse),
             "incidents": summarize_incidents(inc),
             "proposals": props, "proposal_counts": summarize_proposals(props),

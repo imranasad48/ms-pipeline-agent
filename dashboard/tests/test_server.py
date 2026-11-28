@@ -55,7 +55,7 @@ def test_page_shows_ready_card_with_buttons_diff_validation_and_refresh(live):
     assert status == 200
     assert "Awaiting your approval" in html and pid in html
     assert 'action="/approve"' in html and 'action="/reject"' in html
-    assert "setInterval" in html and "location.reload" in html
+    assert 'id="live-region"' in html and "DOMParser" in html and "location.reload" not in html
     assert "Diagnosis" in html and "Proposed change" in html and 'class="add"' in html
     assert "Validation (before vs after)" in html and "<table>" in html
 
@@ -64,7 +64,7 @@ def test_approve_applies_and_resolves_incident(live):
     toy, pid, port = live
     live_pipeline = toy.repo / "dags/toy/pipeline.py"
     before = live_pipeline.read_text()
-    status, loc, _ = _req(port, "POST", "/approve", {"proposal_id": pid})
+    status, loc, _ = _req(port, "POST", "/approve", {"proposal_id": pid, "confirm": "apply"})
     assert status == 303 and loc.startswith("/?msg=Applied")
     assert live_pipeline.read_text() != before                       # the patch landed
     assert {p["proposal_id"]: p["status"] for p in list_proposals(toy.settings)}[pid] == "APPLIED"
@@ -93,8 +93,8 @@ def test_reject_requires_reason(live):
 
 def test_double_approve_is_refused_not_crashing(live):
     toy, pid, port = live
-    _req(port, "POST", "/approve", {"proposal_id": pid})
-    status, loc, _ = _req(port, "POST", "/approve", {"proposal_id": pid})
+    _req(port, "POST", "/approve", {"proposal_id": pid, "confirm": "apply"})
+    status, loc, _ = _req(port, "POST", "/approve", {"proposal_id": pid, "confirm": "apply"})
     assert status == 303 and "err=1" in loc and "Refused" in urllib.parse.unquote_plus(loc)
     _, _, html = _req(port, "GET", loc)
     assert "Refused" in html
@@ -102,7 +102,7 @@ def test_double_approve_is_refused_not_crashing(live):
 
 def test_unknown_proposal_and_cross_origin_and_routes(live):
     toy, pid, port = live
-    _, loc, _ = _req(port, "POST", "/approve", {"proposal_id": "p-nope"})
+    _, loc, _ = _req(port, "POST", "/approve", {"proposal_id": "p-nope", "confirm": "apply"})
     assert "err=1" in loc
     status, _, _ = _req(port, "POST", "/approve", {"proposal_id": pid}, {"Origin": "http://evil.example"})
     assert status == 403

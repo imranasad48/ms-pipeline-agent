@@ -1,8 +1,10 @@
 """Live dashboard server (stdlib only, localhost): rebuild per request + approve/reject POSTs.
 
-POST /approve  proposal_id           -> healing.proposals.apply_proposal   (== `healing apply`)
-POST /reject   proposal_id, reason   -> healing.proposals.reject_proposal  (== `healing reject`)
-Both redirect (303) back to /?msg=... so the result shows as a flash message.
+GET  /  /pipelines  /pipeline/<id>  /incidents  /proposals  /governance   (see pages.route)
+POST /approve  proposal_id, confirm=apply -> healing.proposals.apply_proposal   (== `healing apply`)
+POST /reject   proposal_id, reason        -> healing.proposals.reject_proposal  (== `healing reject`)
+Both redirect (303) back to /?msg=... so the result shows as a flash message. An approve
+without confirm=apply (i.e. not sent from the "Confirm apply to production" step) is refused.
 """
 from __future__ import annotations
 
@@ -12,9 +14,9 @@ import urllib.parse
 from healing.proposals import apply_proposal, reject_proposal
 from healing.settings import Settings
 
-from .data import Paths, assemble
-from .governance import assemble_governance, render_governance
-from .render import render
+from .data import Paths
+from .layout import Links, not_found
+from .pages import route
 
 
 def make_handler(paths: Paths, settings: Settings):
@@ -41,14 +43,14 @@ def make_handler(paths: Paths, settings: Settings):
 
         def do_GET(self):
             url = urllib.parse.urlparse(self.path)
-            if url.path == "/governance":       # no auto-refresh here: open <details> must stay open
-                return self._send(200, render_governance(assemble_governance(paths), live=True).encode())
-            if url.path not in ("/", "/index.html"):
-                return self._send(404, b"not found", "text/plain")
             q = urllib.parse.parse_qs(url.query)
-            page = render(assemble(paths), live=True, flash=(q.get("msg") or [""])[0],
-                          flash_error="err" in q)
-            self._send(200, page.encode())
+            try:
+                code, page = route(paths, url.path, q, live=True, flash=(q.get("msg") or [""])[0],
+                                   flash_error="err" in q)
+            except Exception as ex:                # never a traceback in the browser
+                self.log_error("GET %s failed: %s: %s", url.path, type(ex).__name__, ex)
+                code, page = 500, not_found("This page could not be rendered; see the server log.", Links(True))
+            self._send(code, page.encode())
 
         def do_POST(self):
             origin = self.headers.get("Origin")
@@ -63,6 +65,9 @@ def make_handler(paths: Paths, settings: Settings):
                 return self._redirect("missing proposal_id", True)
             try:
                 if self.path == "/approve":
+                    if (form.get("confirm") or [""])[0] != "apply":
+                        return self._redirect("Approve needs the explicit confirm step "
+                                              "(\u201cConfirm apply to production\u201d). Nothing was applied.", True)
                     files = apply_proposal(settings, pid, channel="dashboard")
                     return self._redirect(f"Applied {pid}: {', '.join(files)}. "
                                           "Incident -> resolved_pending_verification.")

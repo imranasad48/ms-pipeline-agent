@@ -122,7 +122,7 @@ def test_governance_route_nav_and_no_refresh(live):  # noqa: F811
     assert status == 200 and "setInterval" not in html and "http-equiv" not in html
     assert 'href="/"' in html
     _, _, main = _req(port, "GET", "/")
-    assert 'href="/governance"' in main and "setInterval" in main
+    assert 'href="/governance"' in main and 'id="live-region"' in main
 
 
 def test_static_build_includes_governance(tmp_path):
